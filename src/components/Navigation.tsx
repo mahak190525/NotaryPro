@@ -1,27 +1,50 @@
 import React from 'react';
 import { PenTool, Menu, X } from 'lucide-react';
+import UserProfile from './UserProfile';
 
 interface NavigationProps {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
+  currentPage: string;
+  user?: any;
+  onShowAuth: () => void;
+  onLogout: () => void;
+  onNavigateLanding: () => void;
 }
 
-export default function Navigation({ mobileMenuOpen, setMobileMenuOpen }: NavigationProps) {
-  const handleNavigation = (path: string) => {
-    if (path.startsWith('#')) {
-      // Scroll to section on home page
-      if (window.location.pathname !== '/') {
-        window.location.href = '/' + path;
-      } else {
-        const element = document.querySelector(path);
+export default function Navigation({ 
+  mobileMenuOpen, 
+  setMobileMenuOpen, 
+  currentPage,
+  user, 
+  onShowAuth, 
+  onLogout,
+  onNavigateLanding 
+}: NavigationProps) {
+  
+  const handleSectionScroll = (sectionId: string) => {
+    if (currentPage !== 'home') {
+      onNavigateLanding();
+      // Wait for page to load then scroll
+      setTimeout(() => {
+        const element = document.querySelector(sectionId);
         element?.scrollIntoView({ behavior: 'smooth' });
-      }
+      }, 100);
     } else {
-      // Navigate to different page
-      window.history.pushState({}, '', path);
-      window.dispatchEvent(new PopStateEvent('popstate'));
+      const element = document.querySelector(sectionId);
+      element?.scrollIntoView({ behavior: 'smooth' });
     }
     setMobileMenuOpen(false);
+  };
+
+  const handleLogoClick = () => {
+    if (user) {
+      // If logged in, redirect to landing page (logout)
+      onLogout();
+    } else {
+      // If not logged in, go to landing page
+      onNavigateLanding();
+    }
   };
 
   return (
@@ -29,28 +52,42 @@ export default function Navigation({ mobileMenuOpen, setMobileMenuOpen }: Naviga
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={() => handleNavigation('/')}>
+            <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={handleLogoClick}>
               <PenTool className="h-8 w-8 text-blue-600" />
               <span className="ml-2 text-xl font-bold text-gray-900">NotaryPro</span>
             </div>
           </div>
           
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
-              <button onClick={() => handleNavigation('#features')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Features</button>
-              <button onClick={() => handleNavigation('/automation')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Automation</button>
-              <button onClick={() => handleNavigation('/mileage')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Mileage</button>
-              <button onClick={() => handleNavigation('/journal')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Journal</button>
-              <button onClick={() => handleNavigation('/receipts')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Receipts</button>
-              <button onClick={() => handleNavigation('/reports')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Reports</button>
-              <button onClick={() => handleNavigation('/pricing')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Pricing</button>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                Start Free Trial
-              </button>
+          <div className="hidden lg:block">
+            <div className="ml-10 flex items-baseline space-x-6">
+              {!user && (
+                <>
+                  <button onClick={() => handleSectionScroll('#hero')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Home</button>
+                  <button onClick={() => handleSectionScroll('#features')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Features</button>
+                  <button onClick={() => handleSectionScroll('#security')} className="text-gray-600 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Security</button>
+                  <button 
+                    onClick={onShowAuth}
+                    className="text-blue-600 hover:text-blue-700 px-3 py-2 text-sm font-medium transition-colors"
+                  >
+                    Login
+                  </button>
+                </>
+              )}
+              
+              {user ? (
+                <UserProfile user={user} onLogout={onLogout} />
+              ) : (
+                <button 
+                  onClick={onShowAuth}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Start Free Trial
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="md:hidden">
+          <div className="lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-gray-600 hover:text-gray-900 focus:outline-none"
@@ -63,18 +100,52 @@ export default function Navigation({ mobileMenuOpen, setMobileMenuOpen }: Naviga
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200">
+        <div className="lg:hidden bg-white border-t border-gray-200">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <button onClick={() => handleNavigation('#features')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Features</button>
-            <button onClick={() => handleNavigation('/automation')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Automation</button>
-            <button onClick={() => handleNavigation('/mileage')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Mileage</button>
-            <button onClick={() => handleNavigation('/journal')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Journal</button>
-            <button onClick={() => handleNavigation('/receipts')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Receipts</button>
-            <button onClick={() => handleNavigation('/reports')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Reports</button>
-            <button onClick={() => handleNavigation('/pricing')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Pricing</button>
-            <button className="w-full text-left bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-base font-medium transition-colors mt-2">
-              Start Free Trial
-            </button>
+            {!user && (
+              <>
+                <button onClick={() => handleSectionScroll('#hero')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Home</button>
+                <button onClick={() => handleSectionScroll('#features')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Features</button>
+                <button onClick={() => handleSectionScroll('#security')} className="text-gray-600 hover:text-blue-600 block px-3 py-2 text-base font-medium w-full text-left">Security</button>
+                <button 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onShowAuth();
+                  }}
+                  className="w-full text-left text-blue-600 hover:text-blue-700 px-3 py-2 text-base font-medium"
+                >
+                  Login
+                </button>
+              </>
+            )}
+            
+            {user ? (
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</p>
+                  <p className="text-xs text-gray-500">{user.email}</p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full text-left text-red-600 px-3 py-2 text-base font-medium"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onShowAuth();
+                }}
+                className="w-full text-left bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-base font-medium transition-colors mt-2"
+              >
+                Start Free Trial
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -1,9 +1,13 @@
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  onShowAuth: () => void;
+}
+
+export default function HeroSection({ onShowAuth }: HeroSectionProps) {
   return (
-    <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20 lg:py-32">
+    <section id="hero" className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20 lg:py-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
@@ -15,7 +19,10 @@ export default function HeroSection() {
             automate workflows, and maximize tax savings—all in one powerful solution.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center">
+            <button 
+              onClick={onShowAuth}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center"
+            >
               Start Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
             </button>
