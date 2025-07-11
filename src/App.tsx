@@ -1,123 +1,79 @@
 import React from 'react';
 import Navigation from './components/Navigation';
-import HeroSection from './components/HeroSection';
-import FeaturesOverview from './components/FeaturesOverview';
-import AutomationCapabilities from './components/AutomationCapabilities';
-import TaxSavingsSection from './components/TaxSavingsSection';
-import ReceiptManagement from './components/ReceiptManagement';
-import DeviceCompatibility from './components/DeviceCompatibility';
-import MobileApplication from './components/MobileApplication';
-import ElectronicJournal from './components/ElectronicJournal';
-import PrivacySecurity from './components/PrivacySecurity';
-import Footer from './components/Footer';
-import MileageTracker from './components/MileageTracker';
-import MileageReports from './components/MileageReports';
-import AutomationDashboard from './components/AutomationDashboard';
+import HomePage from './components/HomePage';
+import Dashboard from './components/Dashboard';
 import PricingPage from './components/PricingPage';
+import AuthModal from './components/AuthModal';
+import { useAuth } from './hooks/useAuth';
 
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState('home');
+  const [showAuthModal, setShowAuthModal] = React.useState(false);
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
 
-  // Simple routing based on hash or pathname
-  React.useEffect(() => {
-    const handleRouteChange = () => {
-      const path = window.location.pathname;
-      if (path === '/mileage') {
-        setCurrentPage('mileage');
-      } else if (path === '/reports') {
-        setCurrentPage('reports');
-      } else if (path === '/automation') {
-        setCurrentPage('automation');
-      } else if (path === '/pricing') {
-        setCurrentPage('pricing');
-      } else if (path === '/journal') {
-        setCurrentPage('journal');
-      } else if (path === '/receipts') {
-        setCurrentPage('receipts');
-      } else {
-        setCurrentPage('home');
-      }
-    };
-
-    handleRouteChange();
-    window.addEventListener('popstate', handleRouteChange);
-    
-    return () => window.removeEventListener('popstate', handleRouteChange);
-  }, []);
-
-  const navigateTo = (page: string) => {
-    setCurrentPage(page);
-    window.history.pushState({}, '', page === 'home' ? '/' : `/${page}`);
+  // Handle authentication success
+  const handleAuthSuccess = (userData: any) => {
+    login(userData);
+    setCurrentPage('dashboard');
+    setShowAuthModal(false);
   };
 
-  if (currentPage === 'mileage') {
+  // Handle logout
+  const handleLogout = () => {
+    logout();
+    setCurrentPage('home');
+  };
+
+  // Handle navigation to landing page
+  const handleNavigateLanding = () => {
+    setCurrentPage('home');
+  };
+
+  // Show loading state while checking authentication
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-white">
-        <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <MileageTracker />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  if (currentPage === 'reports') {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <MileageReports />
-      </div>
-    );
-  }
+  // Render page content based on current page
+  const renderPageContent = () => {
+    // If user is authenticated, always show dashboard
+    if (isAuthenticated) {
+      return <Dashboard user={user} />;
+    }
 
-  if (currentPage === 'automation') {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <AutomationDashboard />
-      </div>
-    );
-  }
-
-  if (currentPage === 'pricing') {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <PricingPage />
-      </div>
-    );
-  }
-
-  if (currentPage === 'journal') {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <ElectronicJournal />
-      </div>
-    );
-  }
-
-  if (currentPage === 'receipts') {
-    return (
-      <div className="min-h-screen bg-white">
-        <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-        <ReceiptManagement />
-      </div>
-    );
-  }
+    // If not authenticated, show public pages
+    switch (currentPage) {
+      case 'pricing':
+        return <PricingPage />;
+      default:
+        return <HomePage onShowAuth={() => setShowAuthModal(true)} />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
-      <HeroSection />
-      <FeaturesOverview />
-      <AutomationCapabilities />
-      <TaxSavingsSection />
-      <ReceiptManagement />
-      <DeviceCompatibility />
-      <MobileApplication />
-      <ElectronicJournal />
-      <PrivacySecurity />
-      <Footer />
+      <Navigation 
+        mobileMenuOpen={mobileMenuOpen} 
+        setMobileMenuOpen={setMobileMenuOpen}
+        currentPage={currentPage}
+        user={user}
+        onShowAuth={() => setShowAuthModal(true)}
+        onLogout={handleLogout}
+        onNavigateLanding={handleNavigateLanding}
+      />
+      
+      {renderPageContent()}
+      
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
     </div>
   );
 }
