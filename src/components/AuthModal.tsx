@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { X, Mail, Eye, EyeOff, Chrome } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import {jwtDecode}  from "jwt-decode";
+import { supabase } from "../supabase/supabaseClient"
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -62,49 +65,73 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
+  e.preventDefault();
 
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const user = {
-        id: Date.now().toString(),
+  if (!validateForm()) return;
+
+  setIsLoading(true);
+
+  try {
+    if (isLogin) {
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
-        firstName: formData.firstName || 'John',
-        lastName: formData.lastName || 'Doe',
-        businessName: formData.businessName || 'Notary Business',
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName || 'John')}+${encodeURIComponent(formData.lastName || 'Doe')}&background=3b82f6&color=fff`
-      };
-      
-      onAuthSuccess(user);
-      setIsLoading(false);
-      onClose();
-    }, 1500);
-  };
+        password: formData.password,
+      });
 
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    
-    // Simulate Google OAuth
-    setTimeout(() => {
-      const user = {
-        id: 'google_' + Date.now().toString(),
-        email: 'user@gmail.com',
-        firstName: 'John',
-        lastName: 'Smith',
-        businessName: 'Smith Notary Services',
-        avatar: 'https://ui-avatars.com/api/?name=John+Smith&background=3b82f6&color=fff',
-        provider: 'google'
-      };
-      
-      onAuthSuccess(user);
-      setIsLoading(false);
+      if (error) throw error;
+
+      const { user } = data;
+      console.log(user);
+
+      onAuthSuccess({
+        id: user.id,
+        email: user.email,
+        firstName: user.identities[0].identity_data.first_name,
+        lastName: user.identities[0].identity_data.last_name,
+        businessName: user.identities[0].identity_data.business_name,
+        avatar: '',
+        provider: 'email',
+      });
+
       onClose();
-    }, 1500);
-  };
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            business_name: formData.businessName,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      const { user } = data;
+
+      if (user) {
+        const { error: insertError } = await supabase.from('users').insert({
+          id: user.id,
+          email: formData.email,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          business_name: formData.businessName,
+        });
+
+        if (insertError) {
+          console.error('Insert error:', insertError.message);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error(err);
+    alert(err.message || 'Something went wrong');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const resetForm = () => {
     setFormData({
@@ -147,14 +174,46 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
         </p>
 
         {/* Google Sign In */}
-        <button
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className="w-full bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-700 py-3 px-4 rounded-lg font-medium flex items-center justify-center transition-colors mb-4 disabled:opacity-50"
-        >
-          <Chrome className="h-5 w-5 mr-3" />
-          {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
-        </button>
+        <div className="mb-4 flex justify-center">
+          <GoogleLogin
+            onSuccess={async (credentialResponse) => {
+              if (credentialResponse.credential) {
+                const decoded: any = jwtDecode(credentialResponse.credential);
+                console.log(decoded);
+          
+                const user = {
+                  id: decoded.sub,
+                  email: decoded.email,
+                  firstName: decoded.given_name || '',
+                  lastName: decoded.family_name || '',
+                  businessName: 'Google User',
+                  avatar: decoded.picture,
+                  provider: 'google'
+                };
+          
+                const { error: insertError } = await supabase.from('google_users').upsert({
+                  id: user.id,
+                  email: user.email,
+                  first_name: user.firstName,
+                  last_name: user.lastName,
+                  avatar_url: user.avatar,
+                  created_at: new Date().toISOString()
+                });
+          
+                if (insertError) {
+                  console.error('Failed to store Google user:', insertError.message);
+                  alert('Google login succeeded but storing user info failed.');
+                }
+          
+                onAuthSuccess(user);
+                onClose();
+              }
+            }}
+            onError={() => {
+              alert('Google Sign In Failed');
+            }}
+          />
+        </div>
 
         <div className="relative mb-6">
           <div className="absolute inset-0 flex items-center">
