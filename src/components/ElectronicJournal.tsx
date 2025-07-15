@@ -21,37 +21,10 @@ import {
   Save,
   X
 } from 'lucide-react';
-
-interface JournalEntry {
-  id: string;
-  date: string;
-  time: string;
-  clientName: string;
-  clientId: string;
-  documentType: string;
-  notaryFee: number;
-  location: string;
-  witnessRequired: boolean;
-  witnessName?: string;
-  signature?: string;
-  thumbprint?: string;
-  idVerified: boolean;
-  idType: string;
-  idNumber: string;
-  idExpiration: string;
-  notes: string;
-  status: 'pending' | 'completed' | 'cancelled';
-}
-
-interface IDScanResult {
-  type: string;
-  number: string;
-  name: string;
-  address: string;
-  dateOfBirth: string;
-  expiration: string;
-  verified: boolean;
-}
+import JournalEntryModal from './modals/electronicJournal/JournalEntryModal';
+import SignaturePadModal from './modals/electronicJournal/SignaturePadModal';
+import EntryDetailsModal from './modals/electronicJournal/EntryDetailsModal';
+import IDScannerModal, { IDScanResult } from './modals/electronicJournal/IDScannerModal';
 
 export default function ElectronicJournal() {
   const [entries, setEntries] = useState<JournalEntry[]>([
@@ -117,57 +90,6 @@ export default function ElectronicJournal() {
     completedEntries: entries.filter(e => e.status === 'completed').length,
     pendingEntries: entries.filter(e => e.status === 'pending').length,
     totalFees: entries.filter(e => e.status === 'completed').reduce((sum, e) => sum + e.notaryFee, 0)
-  };
-
-  // Signature pad functions
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true);
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect();
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.beginPath();
-        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-      }
-    }
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect();
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-        ctx.stroke();
-      }
-    }
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-  };
-
-  const saveSignature = () => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const signatureData = canvas.toDataURL();
-      // Here you would save the signature data
-      console.log('Signature saved:', signatureData);
-      setShowSignaturePad(false);
-    }
   };
 
   // ID Scanner simulation
@@ -426,112 +348,24 @@ export default function ElectronicJournal() {
 
         {/* Signature Pad Modal */}
         {showSignaturePad && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-2xl w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">Digital Signature Pad</h3>
-                <button
-                  onClick={() => setShowSignaturePad(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <div className="border-2 border-gray-300 rounded-lg p-4 mb-4">
-                <canvas
-                  ref={canvasRef}
-                  width={600}
-                  height={200}
-                  className="w-full border border-gray-200 rounded cursor-crosshair"
-                  onMouseDown={startDrawing}
-                  onMouseMove={draw}
-                  onMouseUp={stopDrawing}
-                  onMouseLeave={stopDrawing}
-                />
-                <p className="text-sm text-gray-500 mt-2 text-center">Sign above using your mouse or touch device</p>
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={clearSignature}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors"
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={saveSignature}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Signature
-                </button>
-              </div>
-            </div>
-          </div>
+          <SignaturePadModal onClose={() => setShowSignaturePad(false)}
+            onSave={(signature) => {
+            console.log("Received signature:", signature);
+            // setSignature(signature); // Save to state, upload to server, etc.
+          }}/>
         )}
 
         {/* ID Scanner Modal */}
         {showIDScanner && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">ID Scanner</h3>
-                <button
-                  onClick={() => setShowIDScanner(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              
-              {!scannedID ? (
-                <div className="text-center">
-                  <div className="bg-gray-100 p-8 rounded-lg mb-4">
-                    <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-4">Position ID document in camera view</p>
-                    <button
-                      onClick={simulateIDScan}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                    >
-                      Start Scan
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-500">Supports Driver's License, Passport, State ID</p>
-                </div>
-              ) : (
-                <div>
-                  <div className="bg-green-50 p-4 rounded-lg mb-4">
-                    <div className="flex items-center mb-2">
-                      <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                      <span className="font-medium text-green-800">ID Verified Successfully</span>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <p><strong>Type:</strong> {scannedID.type}</p>
-                      <p><strong>Name:</strong> {scannedID.name}</p>
-                      <p><strong>Number:</strong> {scannedID.number}</p>
-                      <p><strong>Expiration:</strong> {scannedID.expiration}</p>
-                    </div>
-                  </div>
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => {
-                        setScannedID(null);
-                        setShowIDScanner(false);
-                      }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-                    >
-                      Use This ID
-                    </button>
-                    <button
-                      onClick={() => setScannedID(null)}
-                      className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors"
-                    >
-                      Scan Again
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <IDScannerModal
+            scannedID={scannedID}
+            onClose={() => setShowIDScanner(false)}
+            onScan={simulateIDScan}
+            onUse={() => {
+              setShowIDScanner(false);
+            }}
+            onRetry={() => setScannedID(null)}
+          />
         )}
 
         {/* Add/Edit Entry Modal */}
@@ -548,6 +382,7 @@ export default function ElectronicJournal() {
           />
         )}
 
+
         {/* Entry Details Modal */}
         {selectedEntry && (
           <EntryDetailsModal
@@ -555,299 +390,6 @@ export default function ElectronicJournal() {
             onClose={() => setSelectedEntry(null)}
           />
         )}
-      </div>
-    </div>
-  );
-}
-
-interface JournalEntryModalProps {
-  entry?: JournalEntry;
-  onSave: (entry: any) => void;
-  onCancel: () => void;
-  title: string;
-  scannedID?: IDScanResult | null;
-}
-
-function JournalEntryModal({ entry, onSave, onCancel, title, scannedID }: JournalEntryModalProps) {
-  const [formData, setFormData] = useState({
-    clientName: entry?.clientName || scannedID?.name || '',
-    clientId: entry?.clientId || '',
-    documentType: entry?.documentType || '',
-    notaryFee: entry?.notaryFee || 0,
-    location: entry?.location || '',
-    witnessRequired: entry?.witnessRequired || false,
-    witnessName: entry?.witnessName || '',
-    idType: entry?.idType || scannedID?.type || '',
-    idNumber: entry?.idNumber || scannedID?.number || '',
-    idExpiration: entry?.idExpiration || scannedID?.expiration || '',
-    notes: entry?.notes || '',
-    status: entry?.status || 'pending'
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (entry) {
-      onSave({ ...entry, ...formData });
-    } else {
-      onSave(formData);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">{title}</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-              <input
-                type="text"
-                value={formData.clientName}
-                onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Document Type</label>
-              <input
-                type="text"
-                value={formData.documentType}
-                onChange={(e) => setFormData(prev => ({ ...prev, documentType: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notary Fee</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.notaryFee}
-                onChange={(e) => setFormData(prev => ({ ...prev, notaryFee: parseFloat(e.target.value) || 0 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ID Type</label>
-              <select
-                value={formData.idType}
-                onChange={(e) => setFormData(prev => ({ ...prev, idType: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select ID Type</option>
-                <option value="Driver's License">Driver's License</option>
-                <option value="Passport">Passport</option>
-                <option value="State ID">State ID</option>
-                <option value="Military ID">Military ID</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
-              <input
-                type="text"
-                value={formData.idNumber}
-                onChange={(e) => setFormData(prev => ({ ...prev, idNumber: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ID Expiration</label>
-              <input
-                type="date"
-                value={formData.idExpiration}
-                onChange={(e) => setFormData(prev => ({ ...prev, idExpiration: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.witnessRequired}
-                onChange={(e) => setFormData(prev => ({ ...prev, witnessRequired: e.target.checked }))}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-900">Witness Required</span>
-            </label>
-            {formData.witnessRequired && (
-              <input
-                type="text"
-                placeholder="Witness Name"
-                value={formData.witnessName}
-                onChange={(e) => setFormData(prev => ({ ...prev, witnessName: e.target.value }))}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="pending">Pending</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={3}
-              placeholder="Additional notes about this notarization..."
-            />
-          </div>
-
-          <div className="flex space-x-3 pt-4">
-            <button
-              type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-            >
-              Save Entry
-            </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-interface EntryDetailsModalProps {
-  entry: JournalEntry;
-  onClose: () => void;
-}
-
-function EntryDetailsModal({ entry, onClose }: EntryDetailsModalProps) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold text-gray-900">Journal Entry Details</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Date & Time</label>
-              <p className="text-gray-900">{entry.date} at {entry.time}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Status</label>
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                entry.status === 'completed' 
-                  ? 'bg-green-100 text-green-800'
-                  : entry.status === 'pending'
-                  ? 'bg-orange-100 text-orange-800'
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {entry.status}
-              </span>
-            </div>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Client Name</label>
-              <p className="text-gray-900">{entry.clientName}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Document Type</label>
-              <p className="text-gray-900">{entry.documentType}</p>
-            </div>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Notary Fee</label>
-              <p className="text-gray-900">${entry.notaryFee.toFixed(2)}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Location</label>
-              <p className="text-gray-900">{entry.location}</p>
-            </div>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">ID Type</label>
-              <p className="text-gray-900">{entry.idType}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">ID Number</label>
-              <p className="text-gray-900">{entry.idNumber}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">ID Expiration</label>
-              <p className="text-gray-900">{entry.idExpiration}</p>
-            </div>
-          </div>
-          
-          {entry.witnessRequired && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Witness</label>
-              <p className="text-gray-900">{entry.witnessName}</p>
-            </div>
-          )}
-          
-          {entry.notes && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Notes</label>
-              <p className="text-gray-900">{entry.notes}</p>
-            </div>
-          )}
-        </div>
-        
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="w-full bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   );
