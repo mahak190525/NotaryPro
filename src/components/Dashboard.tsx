@@ -31,7 +31,7 @@ export default function Dashboard({ user }: DashboardProps) {
       case 'import-orders':
         return <ImportOrders />;
       default:
-        return <DashboardHome user={user} />;
+        return <DashboardHome user={user} onNavigate={setCurrentPage} />;
     }
   };
 
