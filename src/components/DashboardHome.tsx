@@ -1,4 +1,5 @@
 import React from 'react';
+import { useState } from 'react';
 import { 
   Receipt, 
   PenTool, 
@@ -14,12 +15,18 @@ import {
   Users,
   ArrowRight
 } from 'lucide-react';
+import ReceiptModal from './modals/receiptManagement/ReceiptModal';
+import JournalEntryModal from './modals/electronicJournal/JournalEntryModal';
 
 interface DashboardHomeProps {
   user: any;
+  onNavigate: (page: string) => void;
 }
 
-export default function DashboardHome({ user }: DashboardHomeProps) {
+export default function DashboardHome({ user, onNavigate }: DashboardHomeProps) {
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showJournalModal, setShowJournalModal] = useState(false);
+
   const quickStats = [
     { label: 'This Month Revenue', value: '$2,450', change: '+12%', icon: DollarSign, color: 'text-green-600' },
     { label: 'Appointments', value: '18', change: '+3', icon: Calendar, color: 'text-blue-600' },
@@ -35,12 +42,51 @@ export default function DashboardHome({ user }: DashboardHomeProps) {
   ];
 
   const quickActions = [
-    { title: 'Add Receipt', description: 'Capture a new business expense', icon: Receipt, action: 'receipts', color: 'bg-blue-600' },
-    { title: 'New Journal Entry', description: 'Record a notarization', icon: PenTool, action: 'journal', color: 'bg-green-600' },
+    { title: 'Add Receipt', description: 'Capture a new business expense', icon: Receipt, action: 'receipt-modal', color: 'bg-blue-600' },
+    { title: 'New Journal Entry', description: 'Record a notarization', icon: PenTool, action: 'journal-modal', color: 'bg-green-600' },
     { title: 'Track Mileage', description: 'Log business travel', icon: Car, action: 'mileage', color: 'bg-purple-600' },
     { title: 'View Reports', description: 'Check your analytics', icon: BarChart3, action: 'reports', color: 'bg-orange-600' }
   ];
 
+  const handleQuickAction = (action: string) => {
+    switch (action) {
+      case 'receipt-modal':
+        setShowReceiptModal(true);
+        break;
+      case 'journal-modal':
+        setShowJournalModal(true);
+        break;
+      default:
+        onNavigate(action);
+    }
+  };
+
+  const categories = [
+    'Office Supplies',
+    'Fuel',
+    'Meals & Entertainment',
+    'Travel',
+    'Equipment',
+    'Software',
+    'Marketing',
+    'Professional Services',
+    'Insurance',
+    'Other'
+  ];
+
+  const addReceipt = (receiptData: any) => {
+    // In a real app, this would save to your state management or API
+    console.log('Receipt added:', receiptData);
+    setShowReceiptModal(false);
+    // You could show a success message here
+  };
+
+  const addJournalEntry = (entryData: any) => {
+    // In a real app, this would save to your state management or API
+    console.log('Journal entry added:', entryData);
+    setShowJournalModal(false);
+    // You could show a success message here
+  };
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -79,6 +125,7 @@ export default function DashboardHome({ user }: DashboardHomeProps) {
                 {quickActions.map((action, index) => (
                   <button
                     key={index}
+                    onClick={() => handleQuickAction(action.action)}
                     className="p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200 text-left group"
                   >
                     <div className="flex items-center space-x-3 mb-2">
@@ -183,6 +230,25 @@ export default function DashboardHome({ user }: DashboardHomeProps) {
             </div>
           </div>
         </div>
+
+        {/* Receipt Modal */}
+        {showReceiptModal && (
+          <ReceiptModal
+            onSave={addReceipt}
+            onCancel={() => setShowReceiptModal(false)}
+            title="Add New Receipt"
+            categories={categories}
+          />
+        )}
+
+        {/* Journal Entry Modal */}
+        {showJournalModal && (
+          <JournalEntryModal
+            onSave={addJournalEntry}
+            onCancel={() => setShowJournalModal(false)}
+            title="Add Journal Entry"
+          />
+        )}
       </div>
     </div>
   );
