@@ -19,12 +19,15 @@ import {
   Trash2,
   Camera,
   Save,
-  X
+  X,
+  Receipt
 } from 'lucide-react';
 import JournalEntryModal from './modals/electronicJournal/JournalEntryModal';
 import SignaturePadModal from './modals/electronicJournal/SignaturePadModal';
 import EntryDetailsModal from './modals/electronicJournal/EntryDetailsModal';
-import IDScannerModal, { IDScanResult } from './modals/electronicJournal/IDScannerModal';
+import IDScannerModal from './modals/electronicJournal/IDScannerModal';
+import InvoiceModal from './modals/electronicJournal/InvoiceModal';
+import { GeminiIDResult } from '../utils/geminiIdService';
 
 export default function ElectronicJournal() {
   const [entries, setEntries] = useState<JournalEntry[]>([
@@ -72,7 +75,9 @@ export default function ElectronicJournal() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed' | 'cancelled'>('all');
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-  const [scannedID, setScannedID] = useState<IDScanResult | null>(null);
+  const [scannedID, setScannedID] = useState<GeminiIDResult | null>(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [selectedEntryForInvoice, setSelectedEntryForInvoice] = useState<JournalEntry | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -90,23 +95,6 @@ export default function ElectronicJournal() {
     completedEntries: entries.filter(e => e.status === 'completed').length,
     pendingEntries: entries.filter(e => e.status === 'pending').length,
     totalFees: entries.filter(e => e.status === 'completed').reduce((sum, e) => sum + e.notaryFee, 0)
-  };
-
-  // ID Scanner simulation
-  const simulateIDScan = () => {
-    // Simulate OCR processing
-    setTimeout(() => {
-      const mockScanResult: IDScanResult = {
-        type: 'Driver\'s License',
-        number: 'DL987654321',
-        name: 'Michael Brown',
-        address: '789 Pine St, Westside',
-        dateOfBirth: '1985-06-15',
-        expiration: '2028-06-15',
-        verified: true
-      };
-      setScannedID(mockScanResult);
-    }, 2000);
   };
 
   const addEntry = (entryData: Partial<JournalEntry>) => {
@@ -245,21 +233,7 @@ export default function ElectronicJournal() {
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setShowSignaturePad(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
-              >
-                <PenTool className="h-4 w-4 mr-2" />
-                Signature Pad
-              </button>
-              <button
-                onClick={() => setShowIDScanner(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
-              >
-                <Scan className="h-4 w-4 mr-2" />
-                Scan ID
-              </button>
+            <div className="flex space-x-4">
               <button
                 onClick={() => setShowAddEntry(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
@@ -327,6 +301,16 @@ export default function ElectronicJournal() {
                     <Eye className="h-4 w-4" />
                   </button>
                   <button
+                    onClick={() => {
+                      setSelectedEntryForInvoice(entry);
+                      setShowInvoiceModal(true);
+                    }}
+                    className="p-2 text-gray-400 hover:text-green-600 transition-colors"
+                    title="Generate Invoice"
+                  >
+                    <Receipt className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => setEditingEntry(entry)}
                     className="p-2 text-gray-400 hover:text-green-600 transition-colors"
                     title="Edit Entry"
@@ -348,11 +332,13 @@ export default function ElectronicJournal() {
 
         {/* Signature Pad Modal */}
         {showSignaturePad && (
-          <SignaturePadModal onClose={() => setShowSignaturePad(false)}
+          <SignaturePadModal 
+            onClose={() => setShowSignaturePad(false)}
             onSave={(signature) => {
-            console.log("Received signature:", signature);
-            // setSignature(signature); // Save to state, upload to server, etc.
-          }}/>
+              console.log("Received signature:", signature);
+              // Handle signature save if needed
+            }}
+          />
         )}
 
         {/* ID Scanner Modal */}
@@ -360,7 +346,7 @@ export default function ElectronicJournal() {
           <IDScannerModal
             scannedID={scannedID}
             onClose={() => setShowIDScanner(false)}
-            onScan={simulateIDScan}
+            onScan={(result) => setScannedID(result)}
             onUse={() => {
               setShowIDScanner(false);
             }}
@@ -388,6 +374,17 @@ export default function ElectronicJournal() {
           <EntryDetailsModal
             entry={selectedEntry}
             onClose={() => setSelectedEntry(null)}
+          />
+        )}
+
+        {/* Invoice Modal */}
+        {showInvoiceModal && selectedEntryForInvoice && (
+          <InvoiceModal
+            entry={selectedEntryForInvoice}
+            onClose={() => {
+              setShowInvoiceModal(false);
+              setSelectedEntryForInvoice(null);
+            }}
           />
         )}
       </div>
