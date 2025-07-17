@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Eye, EyeOff, Chrome } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import {jwtDecode}  from "jwt-decode";
-import { supabase } from "../supabase/supabaseClient"
+import { supabase } from "../../supabase/supabaseClient"
 
 interface AuthModalProps {
   isOpen: boolean;
