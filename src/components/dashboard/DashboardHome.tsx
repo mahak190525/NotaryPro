@@ -15,8 +15,8 @@ import {
   Users,
   ArrowRight
 } from 'lucide-react';
-import ReceiptModal from './modals/receiptManagement/ReceiptModal';
-import JournalEntryModal from './modals/electronicJournal/JournalEntryModal';
+import ReceiptModal from '../modals/receiptManagement/ReceiptModal';
+import JournalEntryModal from '../modals/electronicJournal/JournalEntryModal';
 
 interface DashboardHomeProps {
   user: any;

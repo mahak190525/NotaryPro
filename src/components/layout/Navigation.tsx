@@ -6,6 +6,7 @@ interface NavigationProps {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
   currentPage: string;
+  setCurrentPage: (page: string) => void;
   user?: any;
   onShowAuth: () => void;
   onLogout: () => void;
@@ -16,6 +17,7 @@ export default function Navigation({
   mobileMenuOpen, 
   setMobileMenuOpen, 
   currentPage,
+  setCurrentPage,
   user, 
   onShowAuth, 
   onLogout,
@@ -39,8 +41,8 @@ export default function Navigation({
 
   const handleLogoClick = () => {
     if (user) {
-      // If logged in, redirect to landing page (logout)
-      onLogout();
+      // If logged in, redirect to dashboard
+      setCurrentPage('dashboard');
     } else {
       // If not logged in, go to landing page
       onNavigateLanding();
@@ -75,7 +77,16 @@ export default function Navigation({
               )}
               
               {user ? (
-                <UserProfile user={user} onLogout={onLogout} />
+                <UserProfile 
+                  user={user} 
+                  onLogout={onLogout}
+                  onNavigateProfile={() => {
+                    setCurrentPage('profile');
+                  }}
+                  onNavigateSettings={() => {
+                    setCurrentPage('settings');
+                  }}
+                />
               ) : (
                 <button 
                   onClick={onShowAuth}
@@ -125,6 +136,24 @@ export default function Navigation({
                   <p className="text-sm font-medium text-gray-900">{user.firstName} {user.lastName}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
+                <button 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setCurrentPage('profile');
+                  }}
+                  className="w-full text-left text-gray-600 px-3 py-2 text-base font-medium"
+                >
+                  Profile
+                </button>
+                <button 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setCurrentPage('settings');
+                  }}
+                  className="w-full text-left text-gray-600 px-3 py-2 text-base font-medium"
+                >
+                  Settings
+                </button>
                 <button 
                   onClick={() => {
                     setMobileMenuOpen(false);

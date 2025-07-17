@@ -20,12 +20,12 @@ import {
   Scan,
   Save
 } from 'lucide-react';
-import ReceiptModal from './modals/receiptManagement/ReceiptModal';
-import ReceiptDetailsModal from './modals/receiptManagement/ReceiptDetailsModal';
-import FileUploadModal from './shared/FileUploadModal';
-import CameraModal from './shared/CameraModal';
-import { geminiReceiptService, GeminiReceiptResult } from '../utils/geminiReceiptService';
-import GeminiOCRModal from './modals/receiptManagement/GeminiOCRModal';
+import ReceiptModal from '../modals/receiptManagement/ReceiptModal';
+import ReceiptDetailsModal from '../modals/receiptManagement/ReceiptDetailsModal';
+import FileUploadModal from '../modals/shared/FileUploadModal';
+import CameraModal from '../modals/shared/CameraModal';
+import { geminiReceiptService, GeminiReceiptResult } from '../../utils/geminiReceiptService';
+import GeminiOCRModal from '../modals/receiptManagement/GeminiOCRModal';
 
 interface ReceiptData {
   id: string;

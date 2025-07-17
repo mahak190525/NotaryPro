@@ -22,11 +22,11 @@ import {
   X,
   Receipt
 } from 'lucide-react';
-import JournalEntryModal from './modals/electronicJournal/JournalEntryModal';
-import SignaturePadModal from './modals/electronicJournal/SignaturePadModal';
-import EntryDetailsModal from './modals/electronicJournal/EntryDetailsModal';
-import IDScannerModal from './modals/electronicJournal/IDScannerModal';
-import InvoiceModal from './modals/electronicJournal/InvoiceModal';
+import JournalEntryModal from '../modals/electronicJournal/JournalEntryModal';
+import SignaturePadModal from '../modals/electronicJournal/SignaturePadModal';
+import EntryDetailsModal from '../modals/electronicJournal/EntryDetailsModal';
+import IDScannerModal from '../modals/electronicJournal/IDScannerModal';
+import InvoiceModal from '../modals/electronicJournal/InvoiceModal';
 import { GeminiIDResult } from '../utils/geminiIdService';
 
 export default function ElectronicJournal() {
