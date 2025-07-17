@@ -8,7 +8,9 @@ import {
   Download, 
   BarChart3,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  User,
+  Settings
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,6 +29,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, currentPage, onNa
     { id: 'reports', label: 'Mileage Reports', icon: BarChart3, path: '/reports' },
     { id: 'automation', label: 'Automation', icon: Zap, path: '/automation' },
     { id: 'import-orders', label: 'Import Orders', icon: Download, path: '/import-orders' },
+    // { id: 'profile', label: 'Profile', icon: User, path: '/profile' },
+    // { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }, 
   ];
 
   const handleNavigation = (path: string) => {

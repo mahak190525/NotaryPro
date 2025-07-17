@@ -1,20 +1,37 @@
-import React, { useState } from 'react';
-import Sidebar from './Sidebar';
+import React, { useState, useEffect } from 'react';
+import Sidebar from '../layout/Sidebar';
 import ReceiptManagement from './ReceiptManagement';
 import ElectronicJournal from './ElectronicJournal';
 import MileageTracker from './MileageTracker';
 import MileageReports from './MileageReports';
 import AutomationDashboard from './AutomationDashboard';
 import ImportOrders from './ImportOrders';
-import DashboardHome from './DashboardHome';
+import DashboardHome from '../dashboard/DashboardHome';
 
 interface DashboardProps {
   user: any;
+  onUpdateUser: (updates: any) => void;
+  onLogout: () => void;
+  currentPageFromApp: string;
+  setAppCurrentPage: (page: string) => void;
 }
 
-export default function Dashboard({ user }: DashboardProps) {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+export default function Dashboard({ 
+  user, 
+  onUpdateUser, 
+  onLogout, 
+  currentPageFromApp, 
+  setAppCurrentPage 
+}: DashboardProps) {
+  const [currentPage, setCurrentPage] = useState(currentPageFromApp || 'dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Sync with App component's currentPage state
+  useEffect(() => {
+    if (currentPageFromApp && currentPageFromApp !== currentPage) {
+      setCurrentPage(currentPageFromApp);
+    }
+  }, [currentPageFromApp]);
 
   const renderPageContent = () => {
     switch (currentPage) {

@@ -1,16 +1,18 @@
 import React from 'react';
-import Navigation from './components/Navigation';
-import HomePage from './components/HomePage';
-import Dashboard from './components/Dashboard';
-import PricingPage from './components/PricingPage';
-import AuthModal from './components/AuthModal';
+import Navigation from './components/layout/Navigation';
+import HomePage from './components/pages/HomePage';
+import Dashboard from './components/pages/Dashboard';
+import PricingPage from './components/pages/PricingPage';
+import ProfilePage from './components/pages/ProfilePage';
+import SettingsPage from './components/pages/SettingsPage';
+import AuthModal from './components/forms/AuthModal';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState('home');
   const [showAuthModal, setShowAuthModal] = React.useState(false);
-  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, login, logout, updateUser } = useAuth();
 
   // Handle authentication success
   const handleAuthSuccess = (userData: any) => {
@@ -41,9 +43,26 @@ function App() {
 
   // Render page content based on current page
   const renderPageContent = () => {
-    // If user is authenticated, always show dashboard
+    // Handle profile and settings pages (accessible from anywhere when authenticated)
+    if (isAuthenticated && currentPage === 'profile') {
+      return <ProfilePage user={user} onUpdateUser={updateUser} />;
+    }
+    
+    if (isAuthenticated && currentPage === 'settings') {
+      return <SettingsPage user={user} onUpdateUser={updateUser} onLogout={handleLogout} />;
+    }
+    
+    // If user is authenticated and not on profile/settings, show dashboard
     if (isAuthenticated) {
-      return <Dashboard user={user} />;
+      return (
+        <Dashboard 
+          user={user} 
+          onUpdateUser={updateUser} 
+          onLogout={handleLogout}
+          currentPageFromApp={currentPage}
+          setAppCurrentPage={setCurrentPage}
+        />
+      );
     }
 
     // If not authenticated, show public pages
@@ -61,6 +80,7 @@ function App() {
         mobileMenuOpen={mobileMenuOpen} 
         setMobileMenuOpen={setMobileMenuOpen}
         currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
         user={user}
         onShowAuth={() => setShowAuthModal(true)}
         onLogout={handleLogout}
