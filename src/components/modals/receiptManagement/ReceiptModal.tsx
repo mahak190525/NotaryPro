@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Upload, Camera } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Upload, Eye } from 'lucide-react';
 
 interface ReceiptModalProps {
   receipt?: any;
@@ -34,20 +34,69 @@ export default function ReceiptModal({
     notes: receipt?.notes || '',
   });
 
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | undefined>(imageUrl || receipt?.imageUrl);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const isEditMode = !!receipt; // Determine if we're in edit mode
+
+  // Update image URL when imageUrl prop changes (only for new receipts)
+  useEffect(() => {
+    if (imageUrl && !isEditMode) {
+      setCurrentImageUrl(imageUrl);
+    }
+  }, [imageUrl, isEditMode]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (receipt) {
-      onSave({ ...receipt, ...formData, imageUrl: imageUrl || receipt.imageUrl });
+      // In edit mode, preserve the original image URL
+      onSave({ ...receipt, ...formData, imageUrl: receipt.imageUrl });
     } else {
-      onSave({ ...formData, imageUrl });
+      // In add mode, use the current image URL
+      onSave({ ...formData, imageUrl: currentImageUrl });
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (onFileUpload) {
-      onFileUpload(e);
+    // Only allow file changes in add mode (not edit mode)
+    if (isEditMode) return;
+    
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      // Create a preview URL for the new file
+      const newImageUrl = URL.createObjectURL(file);
+      setCurrentImageUrl(newImageUrl);
+      
+      // Call the original onFileUpload if provided
+      if (onFileUpload) {
+        onFileUpload(e);
+      }
     }
   };
+
+  const handleRemoveImage = () => {
+    // Only allow image removal in add mode (not edit mode)
+    if (isEditMode) return;
+    
+    setCurrentImageUrl(undefined);
+    setSelectedFile(null);
+    
+    // Reset all file inputs
+    const fileInputs = document.querySelectorAll('input[type="file"]') as NodeListOf<HTMLInputElement>;
+    fileInputs.forEach(input => {
+      input.value = '';
+    });
+  };
+
+  // Clean up object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (currentImageUrl && currentImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(currentImageUrl);
+      }
+    };
+  }, [currentImageUrl]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -59,43 +108,91 @@ export default function ReceiptModal({
           </button>
         </div>
 
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">{title}</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Image Upload Section */}
-          {(imageUrl || receipt?.imageUrl) && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Receipt Image</label>
-              <img
-                src={imageUrl || receipt?.imageUrl}
-                alt="Receipt"
-                className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
-              />
-            </div>
-          )}
-
-          {!imageUrl && !receipt?.imageUrl && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Add Receipt Image</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 mb-2">Upload receipt image</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  id="receipt-upload"
-                />
-                <label
-                  htmlFor="receipt-upload"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer inline-block"
-                >
-                  Choose File
-                </label>
+          {/* Image Upload/Preview Section */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Receipt Image</label>
+            
+            {currentImageUrl ? (
+              <div className="space-y-3">
+                {/* Image Preview */}
+                <div className="relative bg-gray-50 rounded-lg border border-gray-200 p-2">
+                  <img
+                    src={currentImageUrl}
+                    alt="Receipt Preview"
+                    className="w-full max-h-64 object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setShowImagePreview(true)}
+                  />
+                  <div className="absolute top-4 right-4 flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowImagePreview(true)}
+                      className="bg-black bg-opacity-60 text-white p-2 rounded-full hover:bg-opacity-80 transition-opacity"
+                      title="View full size"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Image Actions - Only show in add mode */}
+                {!isEditMode && (
+                  <div className="flex justify-center space-x-3">
+                    <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer font-medium transition-colors flex items-center">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Replace Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                
+                <p className="text-xs text-gray-500 text-center">
+                  {isEditMode 
+                    ? "Click image to view full size • Image cannot be changed in edit mode"
+                    : "Click image to view full size • Use Replace to change image • Remove to delete"
+                  }
+                </p>
               </div>
-            </div>
-          )}
+            ) : (
+              /* Initial Upload Section - Only show in add mode */
+              !isEditMode && (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
+                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4 font-medium">Upload receipt image</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="receipt-upload"
+                  />
+                  <label
+                    htmlFor="receipt-upload"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg cursor-pointer inline-block font-medium transition-colors"
+                  >
+                    Choose File
+                  </label>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Supports JPG, PNG, GIF up to 10MB. You can preview and change the image after uploading.
+                  </p>
+                </div>
+              )
+            )}
+          </div>
 
+          {/* Form Fields */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
@@ -213,20 +310,53 @@ export default function ReceiptModal({
           </div>
 
           <div className="flex space-x-3 pt-4">
-            <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+            <button 
+              type="submit" 
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+            >
               Save Receipt
             </button>
-            <button type="button" onClick={onCancel} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors">
+            <button 
+              type="button" 
+              onClick={onCancel} 
+              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors"
+            >
               Cancel
             </button>
           </div>
         </form>
+
+        {/* Full Size Image Preview Modal */}
+        {showImagePreview && currentImageUrl && (
+          <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+            <div className="relative max-w-5xl max-h-full">
+              <button
+                onClick={() => setShowImagePreview(false)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 z-10"
+              >
+                <X className="h-8 w-8" />
+              </button>
+              <img
+                src={currentImageUrl}
+                alt="Receipt Full Size"
+                className="max-w-full max-h-full rounded-lg shadow-2xl"
+              />
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-60 text-white px-4 py-2 rounded-lg text-sm">
+                Click anywhere outside to close
+              </div>
+            </div>
+            <div 
+              className="absolute inset-0 -z-10" 
+              onClick={() => setShowImagePreview(false)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
 }
-// import React, { useState } from 'react';
-// import { X, Upload, Camera } from 'lucide-react';
+// import React, { useState, useEffect } from 'react';
+// import { X, Upload, Camera, Eye, Trash2, RotateCcw } from 'lucide-react';
 
 // interface ReceiptModalProps {
 //   receipt?: any;
@@ -253,28 +383,68 @@ export default function ReceiptModal({
 //     vendor: receipt?.vendor || ocrResult?.vendor || '',
 //     amount: receipt?.amount || ocrResult?.amount || 0,
 //     date: receipt?.date || ocrResult?.date || new Date().toISOString().split('T')[0],
-//     category: receipt?.category || '',
+//     category: receipt?.category || ocrResult?.category || '',
 //     description: receipt?.description || ocrResult?.description || '',
-//     paymentMethod: receipt?.paymentMethod || 'Credit Card',
+//     paymentMethod: receipt?.paymentMethod || ocrResult?.paymentMethod || 'Credit Card',
 //     taxDeductible: receipt?.taxDeductible ?? true,
 //     status: receipt?.status || 'pending',
 //     notes: receipt?.notes || '',
 //   });
 
+//   const [currentImageUrl, setCurrentImageUrl] = useState<string | undefined>(imageUrl || receipt?.imageUrl);
+//   const [showImagePreview, setShowImagePreview] = useState(false);
+//   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+//   // Update image URL when imageUrl prop changes
+//   useEffect(() => {
+//     if (imageUrl) {
+//       setCurrentImageUrl(imageUrl);
+//     }
+//   }, [imageUrl]);
+
 //   const handleSubmit = (e: React.FormEvent) => {
 //     e.preventDefault();
 //     if (receipt) {
-//       onSave({ ...receipt, ...formData, imageUrl: imageUrl || receipt.imageUrl });
+//       onSave({ ...receipt, ...formData, imageUrl: currentImageUrl });
 //     } else {
-//       onSave({ ...formData, imageUrl });
+//       onSave({ ...formData, imageUrl: currentImageUrl });
 //     }
 //   };
 
 //   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     if (onFileUpload) {
-//       onFileUpload(e);
+//     const file = e.target.files?.[0];
+//     if (file) {
+//       setSelectedFile(file);
+//       // Create a preview URL for the new file
+//       const newImageUrl = URL.createObjectURL(file);
+//       setCurrentImageUrl(newImageUrl);
+      
+//       // Call the original onFileUpload if provided
+//       if (onFileUpload) {
+//         onFileUpload(e);
+//       }
 //     }
 //   };
+
+//   const handleRemoveImage = () => {
+//     setCurrentImageUrl(undefined);
+//     setSelectedFile(null);
+    
+//     // Reset all file inputs
+//     const fileInputs = document.querySelectorAll('input[type="file"]') as NodeListOf<HTMLInputElement>;
+//     fileInputs.forEach(input => {
+//       input.value = '';
+//     });
+//   };
+
+//   // Clean up object URLs to prevent memory leaks
+//   useEffect(() => {
+//     return () => {
+//       if (currentImageUrl && currentImageUrl.startsWith('blob:')) {
+//         URL.revokeObjectURL(currentImageUrl);
+//       }
+//     };
+//   }, [currentImageUrl]);
 
 //   return (
 //     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -286,26 +456,72 @@ export default function ReceiptModal({
 //           </button>
 //         </div>
 
-//         <h3 className="text-xl font-semibold text-gray-900 mb-4">{title}</h3>
 //         <form onSubmit={handleSubmit} className="space-y-4">
-//           {/* Image Upload Section */}
-//           {(imageUrl || receipt?.imageUrl) && (
-//             <div className="mb-4">
-//               <label className="block text-sm font-medium text-gray-700 mb-2">Receipt Image</label>
-//               <img
-//                 src={imageUrl || receipt?.imageUrl}
-//                 alt="Receipt"
-//                 className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
-//               />
-//             </div>
-//           )}
-
-//           {!imageUrl && !receipt?.imageUrl && (
-//             <div className="mb-4">
-//               <label className="block text-sm font-medium text-gray-700 mb-2">Add Receipt Image</label>
-//               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-//                 <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-//                 <p className="text-gray-600 mb-2">Upload receipt image</p>
+//           {/* Image Upload/Preview Section */}
+//           <div className="mb-6">
+//             <label className="block text-sm font-medium text-gray-700 mb-2">Receipt Image</label>
+            
+//             {currentImageUrl ? (
+//               <div className="space-y-3">
+//                 {/* Image Preview */}
+//                 <div className="relative bg-gray-50 rounded-lg border border-gray-200 p-2">
+//                   <img
+//                     src={currentImageUrl}
+//                     alt="Receipt Preview"
+//                     className="w-full max-h-64 object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+//                     onClick={() => setShowImagePreview(true)}
+//                   />
+//                   <div className="absolute top-4 right-4 flex space-x-2">
+//                     <button
+//                       type="button"
+//                       onClick={() => setShowImagePreview(true)}
+//                       className="bg-black bg-opacity-60 text-white p-2 rounded-full hover:bg-opacity-80 transition-opacity"
+//                       title="View full size"
+//                     >
+//                       <Eye className="h-4 w-4" />
+//                     </button>
+//                     <button
+//                       type="button"
+//                       onClick={handleRemoveImage}
+//                       className="bg-black bg-opacity-60 text-white p-2 rounded-full hover:bg-opacity-80 transition-opacity"
+//                       title="Remove image"
+//                     >
+//                       <Trash2 className="h-4 w-4" />
+//                     </button>
+//                   </div>
+//                 </div>
+                
+//                 {/* Image Actions */}
+//                 <div className="flex justify-center space-x-3">
+//                   <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer font-medium transition-colors flex items-center">
+//                     <RotateCcw className="h-4 w-4 mr-2" />
+//                     Replace Image
+//                     <input
+//                       type="file"
+//                       accept="image/*"
+//                       onChange={handleFileChange}
+//                       className="hidden"
+//                     />
+//                   </label>
+//                   <button
+//                     type="button"
+//                     onClick={handleRemoveImage}
+//                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
+//                   >
+//                     <Trash2 className="h-4 w-4 mr-2" />
+//                     Remove
+//                   </button>
+//                 </div>
+                
+//                 <p className="text-xs text-gray-500 text-center">
+//                   Click image to view full size • Use Replace to change image • Remove to delete
+//                 </p>
+//               </div>
+//             ) : (
+//               /* Initial Upload Section */
+//               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
+//                 <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+//                 <p className="text-gray-600 mb-4 font-medium">Upload receipt image</p>
 //                 <input
 //                   type="file"
 //                   accept="image/*"
@@ -315,14 +531,18 @@ export default function ReceiptModal({
 //                 />
 //                 <label
 //                   htmlFor="receipt-upload"
-//                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer inline-block"
+//                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg cursor-pointer inline-block font-medium transition-colors"
 //                 >
 //                   Choose File
 //                 </label>
+//                 <p className="text-xs text-gray-500 mt-3">
+//                   Supports JPG, PNG, GIF up to 10MB. You can preview and change the image after uploading.
+//                 </p>
 //               </div>
-//             </div>
-//           )}
+//             )}
+//           </div>
 
+//           {/* Form Fields */}
 //           <div className="grid md:grid-cols-2 gap-4">
 //             <div>
 //               <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
@@ -440,14 +660,47 @@ export default function ReceiptModal({
 //           </div>
 
 //           <div className="flex space-x-3 pt-4">
-//             <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+//             <button 
+//               type="submit" 
+//               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+//             >
 //               Save Receipt
 //             </button>
-//             <button type="button" onClick={onCancel} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors">
+//             <button 
+//               type="button" 
+//               onClick={onCancel} 
+//               className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg font-medium transition-colors"
+//             >
 //               Cancel
 //             </button>
 //           </div>
 //         </form>
+
+//         {/* Full Size Image Preview Modal */}
+//         {showImagePreview && currentImageUrl && (
+//           <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+//             <div className="relative max-w-5xl max-h-full">
+//               <button
+//                 onClick={() => setShowImagePreview(false)}
+//                 className="absolute -top-12 right-0 text-white hover:text-gray-300 z-10"
+//               >
+//                 <X className="h-8 w-8" />
+//               </button>
+//               <img
+//                 src={currentImageUrl}
+//                 alt="Receipt Full Size"
+//                 className="max-w-full max-h-full rounded-lg shadow-2xl"
+//               />
+//               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-60 text-white px-4 py-2 rounded-lg text-sm">
+//                 Click anywhere outside to close
+//               </div>
+//             </div>
+//             <div 
+//               className="absolute inset-0 -z-10" 
+//               onClick={() => setShowImagePreview(false)}
+//             />
+//           </div>
+//         )}
 //       </div>
 //     </div>
 //   );
