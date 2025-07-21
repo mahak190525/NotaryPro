@@ -1,55 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { checkAuthStatus, signOut, setUser } from '../store/slices/authSlice';
+import { User } from '../store/types';
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  businessName: string;
-  avatar: string;
-  provider?: string;
-}
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { user, isAuthenticated, isLoading, error } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
-    // Check for stored user data on app load
-    const storedUser = localStorage.getItem('notary_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        localStorage.removeItem('notary_user');
-      }
-    }
-    setIsLoading(false);
+    dispatch(checkAuthStatus());
   }, []);
 
   const login = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem('notary_user', JSON.stringify(userData));
+    dispatch(setUser(userData));
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('notary_user');
+  const logout = async () => {
+    return dispatch(signOut());
   };
 
   const updateUser = (updates: Partial<User>) => {
     if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      localStorage.setItem('notary_user', JSON.stringify(updatedUser));
+      dispatch(setUser({ ...user, ...updates }));
     }
   };
 
   return {
     user,
+    isAuthenticated,
     isLoading,
-    isAuthenticated: !!user,
+    error,
     login,
     logout,
     updateUser

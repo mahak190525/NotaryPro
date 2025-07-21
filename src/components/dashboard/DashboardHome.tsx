@@ -15,6 +15,9 @@ import {
   Users,
   ArrowRight
 } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { addReceipt } from '../../store/slices/receiptSlice';
+import { addJournalEntry } from '../../store/slices/journalSlice';
 import ReceiptModal from '../modals/receiptManagement/ReceiptModal';
 import JournalEntryModal from '../modals/electronicJournal/JournalEntryModal';
 
@@ -24,14 +27,35 @@ interface DashboardHomeProps {
 }
 
 export default function DashboardHome({ user, onNavigate }: DashboardHomeProps) {
+  const dispatch = useAppDispatch();
+  const { receipts } = useAppSelector((state) => state.receipts);
+  const { entries } = useAppSelector((state) => state.journal);
+  const { trips } = useAppSelector((state) => state.mileage);
+  
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showJournalModal, setShowJournalModal] = useState(false);
 
+  // Calculate stats from Redux state
+  const thisMonthRevenue = entries
+    .filter(entry => entry.status === 'completed' && new Date(entry.date).getMonth() === new Date().getMonth())
+    .reduce((sum, entry) => sum + entry.notaryFee, 0);
+  
+  const thisMonthAppointments = entries
+    .filter(entry => new Date(entry.date).getMonth() === new Date().getMonth()).length;
+  
+  const thisMonthMiles = trips
+    .filter(trip => trip.category === 'business' && new Date(trip.date).getMonth() === new Date().getMonth())
+    .reduce((sum, trip) => sum + trip.distance, 0);
+  
+  const thisMonthDeductions = receipts
+    .filter(receipt => receipt.taxDeductible && new Date(receipt.date).getMonth() === new Date().getMonth())
+    .reduce((sum, receipt) => sum + receipt.amount, 0);
+
   const quickStats = [
-    { label: 'This Month Revenue', value: '$2,450', change: '+12%', icon: DollarSign, color: 'text-green-600' },
-    { label: 'Appointments', value: '18', change: '+3', icon: Calendar, color: 'text-blue-600' },
-    { label: 'Miles Tracked', value: '245.8', change: '+45.2', icon: Car, color: 'text-purple-600' },
-    { label: 'Tax Deductions', value: '$1,890', change: '+$340', icon: TrendingUp, color: 'text-orange-600' }
+    { label: 'This Month Revenue', value: `$${thisMonthRevenue.toFixed(0)}`, change: '+12%', icon: DollarSign, color: 'text-green-600' },
+    { label: 'Appointments', value: thisMonthAppointments.toString(), change: '+3', icon: Calendar, color: 'text-blue-600' },
+    { label: 'Miles Tracked', value: thisMonthMiles.toFixed(1), change: '+45.2', icon: Car, color: 'text-purple-600' },
+    { label: 'Tax Deductions', value: `$${thisMonthDeductions.toFixed(0)}`, change: '+$340', icon: TrendingUp, color: 'text-orange-600' }
   ];
 
   const recentActivity = [
@@ -74,19 +98,58 @@ export default function DashboardHome({ user, onNavigate }: DashboardHomeProps) 
     'Other'
   ];
 
-  const addReceipt = (receiptData: any) => {
-    // In a real app, this would save to your state management or API
-    console.log('Receipt added:', receiptData);
+  const handleAddReceipt = async (receiptData: any) => {
+    if (!user?.id) return;
+
+    const newReceiptData = {
+      userId: user.id,
+      date: receiptData.date || new Date().toISOString().split('T')[0],
+      vendor: receiptData.vendor || '',
+      amount: receiptData.amount || 0,
+      category: receiptData.category || '',
+      description: receiptData.description || '',
+      paymentMethod: receiptData.paymentMethod || 'Credit Card',
+      taxDeductible: receiptData.taxDeductible ?? true,
+      ocrProcessed: receiptData.ocrProcessed ?? false,
+      status: receiptData.status || 'pending',
+      tags: receiptData.tags || [],
+      notes: receiptData.notes || '',
+      imageUrl: receiptData.imageUrl
+    };
+
+    await dispatch(addReceipt({ receipt: newReceiptData }));
     setShowReceiptModal(false);
-    // You could show a success message here
   };
 
-  const addJournalEntry = (entryData: any) => {
-    // In a real app, this would save to your state management or API
-    console.log('Journal entry added:', entryData);
+  const handleAddJournalEntry = async (entryData: any) => {
+    if (!user?.id) return;
+
+    const newEntryData = {
+      userId: user.id,
+      date: entryData.date || new Date().toISOString().split('T')[0],
+      time: entryData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      clientName: entryData.clientName || '',
+      clientId: entryData.clientId || '',
+      appointmentType: entryData.appointmentType || 'in-person',
+      documentType: entryData.documentType || '',
+      notaryFee: entryData.notaryFee || 0,
+      location: entryData.location || '',
+      witnessRequired: entryData.witnessRequired || false,
+      witnessName: entryData.witnessName || '',
+      signature: entryData.signature,
+      thumbprint: entryData.thumbprint,
+      idVerified: entryData.idVerified || false,
+      idType: entryData.idType || '',
+      idNumber: entryData.idNumber || '',
+      idExpiration: entryData.idExpiration || '',
+      notes: entryData.notes || '',
+      status: entryData.status || 'pending'
+    };
+
+    await dispatch(addJournalEntry({ entry: newEntryData }));
     setShowJournalModal(false);
-    // You could show a success message here
   };
+  
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -234,7 +297,7 @@ export default function DashboardHome({ user, onNavigate }: DashboardHomeProps) 
         {/* Receipt Modal */}
         {showReceiptModal && (
           <ReceiptModal
-            onSave={addReceipt}
+            onSave={handleAddReceipt}
             onCancel={() => setShowReceiptModal(false)}
             title="Add New Receipt"
             categories={categories}
@@ -244,7 +307,7 @@ export default function DashboardHome({ user, onNavigate }: DashboardHomeProps) 
         {/* Journal Entry Modal */}
         {showJournalModal && (
           <JournalEntryModal
-            onSave={addJournalEntry}
+          onSave={handleAddJournalEntry}
             onCancel={() => setShowJournalModal(false)}
             title="Add Journal Entry"
           />

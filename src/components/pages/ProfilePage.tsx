@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Mail, Building, Edit3, Save, X, Camera, Shield, ArrowLeft } from 'lucide-react';
-import { supabase } from '../../supabase/supabaseClient';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { updateUserProfile, uploadAvatar } from '../../store/slices/userSlice';
 
 interface ProfilePageProps {
   user: any;
@@ -8,8 +9,9 @@ interface ProfilePageProps {
 }
 
 export default function ProfilePage({ user, onUpdateUser }: ProfilePageProps) {
+  const dispatch = useAppDispatch();
+  const { isLoading } = useAppSelector((state) => state.user);
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -42,151 +44,67 @@ export default function ProfilePage({ user, onUpdateUser }: ProfilePageProps) {
   const loadProfileData = async () => {
     if (!user) return;
 
+    // Try to load fresh profile data from the API
     try {
-      setLoading(true);
+      const { loadUserProfile } = await import('../../store/slices/userSlice');
+      const result = await dispatch(loadUserProfile({ userId: user.id, provider: user.provider }));
       
-      // Try to get data from the users table first
-      let { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      // If not found in users table, try google_users table
-      if (userError && user.provider === 'google') {
-        const { data: googleUserData, error: googleError } = await supabase
-          .from('google_users')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (!googleError && googleUserData) {
-          userData = {
-            id: googleUserData.id,
-            email: googleUserData.email,
-            first_name: googleUserData.first_name,
-            last_name: googleUserData.last_name,
-            business_name: googleUserData.business_name,
-            phone: googleUserData.phone,
-            address: googleUserData.address,
-            city: googleUserData.city,
-            state: googleUserData.state,
-            zip_code: googleUserData.zip_code,
-            license_number: googleUserData.license_number,
-            commission_expiration: googleUserData.commission_expiration,
-            avatar_url: googleUserData.avatar_url,
-            created_at: googleUserData.created_at
-          };
-        }
-      }
-
-      if (userData) {
+      if (loadUserProfile.fulfilled.match(result)) {
+        const profileData = result.payload;
         const data = {
-          firstName: userData.first_name || user.firstName || '',
-          lastName: userData.last_name || user.lastName || '',
-          email: userData.email || user.email || '',
-          businessName: userData.business_name || user.businessName || '',
-          phone: userData.phone || '',
-          address: userData.address || '',
-          city: userData.city || '',
-          state: userData.state || '',
-          zipCode: userData.zip_code || '',
-          licenseNumber: userData.license_number || '',
-          commissionExpiration: userData.commission_expiration || '',
-          avatar: userData.avatar_url || user.avatar || ''
+          firstName: profileData.firstName || '',
+          lastName: profileData.lastName || '',
+          email: profileData.email || '',
+          businessName: profileData.businessName || '',
+          phone: profileData.phone || '',
+          address: profileData.address || '',
+          city: profileData.city || '',
+          state: profileData.state || '',
+          zipCode: profileData.zipCode || '',
+          licenseNumber: profileData.licenseNumber || '',
+          commissionExpiration: profileData.commissionExpiration || '',
+          avatar: profileData.avatar || ''
         };
         setProfileData(data);
         setOriginalData(data);
         
-        // Set member since date
-        if (userData.created_at) {
-          setMemberSince(new Date(userData.created_at).toLocaleDateString());
+        // Set member since date from loaded profile
+        if (profileData.createdAt) {
+          setMemberSince(new Date(profileData.createdAt).toLocaleDateString());
+        } else if (user.createdAt) {
+          setMemberSince(new Date(user.createdAt).toLocaleDateString());
+        } else {
+          setMemberSince('Recently joined');
         }
-      } else {
-        // Fallback to user object data
-        const data = {
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
-          email: user.email || '',
-          businessName: user.businessName || '',
-          phone: '',
-          address: '',
-          city: '',
-          state: '',
-          zipCode: '',
-          licenseNumber: '',
-          commissionExpiration: '',
-          avatar: user.avatar || ''
-        };
-        setProfileData(data);
-        setOriginalData(data);
-        
-        // Fallback member since
-        setMemberSince('Recently joined');
+        return;
       }
     } catch (error) {
-      console.error('Error loading profile data:', error);
-    } finally {
-      setLoading(false);
+      console.warn('Failed to load fresh profile data, using cached user data:', error);
     }
-  };
 
-  const uploadAvatarToStorage = async (file: File): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const safeUserId = user.id.toString().replace(/[^a-zA-Z0-9]/g, '_');
-      const newFilePath = `${safeUserId}.${fileExt}`;
-
-      console.log('Uploading file with path:', newFilePath);
-      
-      // First, list all existing files for this user to delete them
-      const { data: existingFiles, error: listError } = await supabase.storage
-        .from('avatar-images')
-        .list('', {
-          search: safeUserId
-        });
-
-      if (listError) {
-        console.warn('Could not list existing files:', listError.message);
-      } else if (existingFiles && existingFiles.length > 0) {
-        const userFiles = existingFiles.filter(file => 
-          file.name.startsWith(safeUserId + '.') || file.name === safeUserId
-        );
-        
-        if (userFiles.length > 0) {
-          const filesToDelete = userFiles.map(file => file.name);
-          const { error: deleteError } = await supabase.storage
-            .from('avatar-images')
-            .remove(filesToDelete);
-
-          if (deleteError) {
-            console.warn('Could not delete some existing files:', deleteError.message);
-          }
-        }
-      }
-      
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatar-images')
-        .upload(newFilePath, file, {
-          upsert: false,
-          contentType: file.type,
-        });
-
-      if (uploadError) {
-        console.error('Failed to upload image:', uploadError);
-        throw new Error(`Failed to upload image: ${uploadError.message}`);
-      }
-
-      // Get the public URL
-      const { data: publicUrlData } = supabase.storage
-        .from('avatar-images')
-        .getPublicUrl(newFilePath);
-
-      return publicUrlData?.publicUrl || null;
-    } catch (error) {
-      console.error('Error uploading avatar:', error);
-      throw error;
+    // Use existing user data as fallback
+    const data = {
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      email: user.email || '',
+      businessName: user.businessName || '',
+      phone: user.phone || '',
+      address: user.address || '',
+      city: user.city || '',
+      state: user.state || '',
+      zipCode: user.zipCode || '',
+      licenseNumber: user.licenseNumber || '',
+      commissionExpiration: user.commissionExpiration || '',
+      avatar: user.avatar || ''
+    };
+    setProfileData(data);
+    setOriginalData(data);
+    
+    // Set member since date
+    if (user.createdAt) {
+      setMemberSince(new Date(user.createdAt).toLocaleDateString());
+    } else {
+      setMemberSince('Recently joined');
     }
   };
 
@@ -194,91 +112,66 @@ export default function ProfilePage({ user, onUpdateUser }: ProfilePageProps) {
     if (!user) return;
 
     try {
-      setLoading(true);
-
       let avatarUrl = profileData.avatar;
 
       // Upload new avatar if there's a pending file
       if (pendingAvatarFile) {
-        try {
-          const uploadedUrl = await uploadAvatarToStorage(pendingAvatarFile);
-          if (uploadedUrl) {
-            avatarUrl = uploadedUrl;
-          }
-        } catch (uploadError) {
-          console.error('Avatar upload failed:', uploadError);
+        const result = await dispatch(uploadAvatar({ userId: user.id, file: pendingAvatarFile }));
+        if (uploadAvatar.fulfilled.match(result)) {
+          avatarUrl = result.payload;
+        } else {
+          console.error('Avatar upload failed');
           alert('Failed to upload avatar image. Profile will be saved without the new image.');
         }
       }
 
-      // Prepare the update data
-      const updateData = {
-        id: user.id,
-        first_name: profileData.firstName,
-        last_name: profileData.lastName,
-        email: profileData.email,
-        business_name: profileData.businessName,
-        phone: profileData.phone,
-        address: profileData.address,
-        city: profileData.city,
-        state: profileData.state,
-        zip_code: profileData.zipCode,
-        license_number: profileData.licenseNumber,
-        commission_expiration: profileData.commissionExpiration || null,
-        avatar_url: avatarUrl,
-        updated_at: new Date().toISOString()
-      };
-
-      let error;
-
-      // Update the appropriate table based on user provider
-      if (user.provider === 'google') {
-        const { error: googleError } = await supabase
-          .from('google_users')
-          .upsert(updateData)
-          .eq('id', user.id);
-        error = googleError;
-      } else {
-        const { error: userError } = await supabase
-          .from('users')
-          .upsert(updateData)
-          .eq('id', user.id);
-        error = userError;
-      }
-
-      if (error) {
-        throw error;
-      }
-
-      // Update the local user context
-      onUpdateUser({
+      // Update user profile
+      const updates = {
         firstName: profileData.firstName,
         lastName: profileData.lastName,
         email: profileData.email,
         businessName: profileData.businessName,
-        avatar: avatarUrl
-      });
+        phone: profileData.phone,
+        address: profileData.address,
+        city: profileData.city,
+        state: profileData.state,
+        zipCode: profileData.zipCode,
+        licenseNumber: profileData.licenseNumber,
+        commissionExpiration: profileData.commissionExpiration,
+        avatar: avatarUrl,
+      };
 
-      // Update local state
-      const updatedProfileData = { ...profileData, avatar: avatarUrl };
-      setProfileData(updatedProfileData);
-      setOriginalData(updatedProfileData);
-      
-      // Clear pending avatar data
-      setPendingAvatarFile(null);
-      setPendingAvatarPreview(null);
-      
-      setIsEditing(false);
-      
-      // Show success message
-      alert('Profile updated successfully!');
+      const result = await dispatch(updateUserProfile({ 
+        userId: user.id, 
+        updates, 
+        provider: user.provider 
+      }));
+
+      if (updateUserProfile.fulfilled.match(result)) {
+        // Update the local user context
+        onUpdateUser(updates);
+
+        // Update local state
+        const updatedProfileData = { ...profileData, avatar: avatarUrl };
+        setProfileData(updatedProfileData);
+        setOriginalData(updatedProfileData);
+        
+        // Clear pending avatar data
+        setPendingAvatarFile(null);
+        setPendingAvatarPreview(null);
+        
+        setIsEditing(false);
+        
+        alert('Profile updated successfully!');
+      } else {
+        alert('Failed to update profile. Please try again.');
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
       alert('Failed to update profile. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
+
 
   const handleCancel = () => {
     setProfileData(originalData);
@@ -323,7 +216,7 @@ export default function ProfilePage({ user, onUpdateUser }: ProfilePageProps) {
     return `https://ui-avatars.com/api/?name=${profileData.firstName}+${profileData.lastName}&background=3b82f6&color=fff&size=80`;
   };
 
-  if (loading && !profileData.firstName) {
+  if (isLoading && !profileData.firstName) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -407,15 +300,15 @@ export default function ProfilePage({ user, onUpdateUser }: ProfilePageProps) {
                     </button>
                     <button
                       onClick={handleSave}
-                      disabled={loading}
-                      className="bg-white text-blue-600 hover:bg-gray-50 disabled:bg-gray-200 px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
+                     disabled={isLoading}
+                     className="bg-white text-blue-600 hover:bg-gray-50 disabled:bg-gray-200 px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
                     >
-                      {loading ? (
+                     {isLoading ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
                       ) : (
                         <Save className="h-4 w-4 mr-2" />
                       )}
-                      Save Changes
+                     {isLoading ? 'Saving...' : 'Save Changes'}
                     </button>
                   </>
                 )}

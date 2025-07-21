@@ -20,6 +20,8 @@ import {
   Scan,
   Save
 } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchReceipts, addReceipt, updateReceipt, deleteReceipt } from '../../store/slices/receiptSlice';
 import ReceiptModal from '../modals/receiptManagement/ReceiptModal';
 import ReceiptDetailsModal from '../modals/receiptManagement/ReceiptDetailsModal';
 import FileUploadModal from '../modals/shared/FileUploadModal';
@@ -27,74 +29,15 @@ import CameraModal from '../modals/shared/CameraModal';
 import { geminiReceiptService, GeminiReceiptResult } from '../../utils/geminiReceiptService';
 import GeminiOCRModal from '../modals/receiptManagement/GeminiOCRModal';
 
-interface ReceiptData {
-  id: string;
-  date: string;
-  vendor: string;
-  amount: number;
-  category: string;
-  description: string;
-  paymentMethod: string;
-  taxDeductible: boolean;
-  imageUrl?: string;
-  ocrProcessed: boolean;
-  status: 'pending' | 'processed' | 'approved' | 'rejected';
-  tags: string[];
-  notes: string;
-}
-
 export default function ReceiptManagement() {
-  const [receipts, setReceipts] = useState<ReceiptData[]>([
-    {
-      id: '1',
-      date: '2025-01-15',
-      vendor: 'Office Depot',
-      amount: 24.99,
-      category: 'Office Supplies',
-      description: 'Printer paper and pens',
-      paymentMethod: 'Credit Card',
-      taxDeductible: true,
-      imageUrl: 'https://images.pexels.com/photos/6863183/pexels-photo-6863183.jpeg?auto=compress&cs=tinysrgb&w=400',
-      ocrProcessed: true,
-      status: 'processed',
-      tags: ['office', 'supplies'],
-      notes: 'Business supplies for client meetings'
-    },
-    {
-      id: '2',
-      date: '2025-01-14',
-      vendor: 'Shell Gas Station',
-      amount: 45.20,
-      category: 'Fuel',
-      description: 'Gasoline for business travel',
-      paymentMethod: 'Credit Card',
-      taxDeductible: true,
-      imageUrl: 'https://images.pexels.com/photos/4386321/pexels-photo-4386321.jpeg?auto=compress&cs=tinysrgb&w=400',
-      ocrProcessed: true,
-      status: 'processed',
-      tags: ['fuel', 'travel'],
-      notes: 'Travel to client appointment'
-    },
-    {
-      id: '3',
-      date: '2025-01-13',
-      vendor: 'Starbucks',
-      amount: 12.50,
-      category: 'Meals & Entertainment',
-      description: 'Coffee meeting with client',
-      paymentMethod: 'Cash',
-      taxDeductible: true,
-      ocrProcessed: false,
-      status: 'pending',
-      tags: ['meals', 'client'],
-      notes: 'Business meeting over coffee'
-    }
-  ]);
+  const dispatch = useAppDispatch();
+  const { receipts, isLoading, totalAmount, taxDeductibleAmount } = useAppSelector((state) => state.receipts);
+  const { user } = useAppSelector((state) => state.auth);
 
   const [showUpload, setShowUpload] = useState(false);
   const [showAddManual, setShowAddManual] = useState(false);
-  const [editingReceipt, setEditingReceipt] = useState<ReceiptData | null>(null);
-  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
+  const [editingReceipt, setEditingReceipt] = useState<any | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'processed' | 'approved' | 'rejected'>('all');
@@ -129,10 +72,17 @@ export default function ReceiptManagement() {
 
   const stats = {
     totalReceipts: receipts.length,
-    totalAmount: receipts.reduce((sum, receipt) => sum + receipt.amount, 0),
-    taxDeductible: receipts.filter(r => r.taxDeductible).reduce((sum, receipt) => sum + receipt.amount, 0),
+    totalAmount,
+    taxDeductible: taxDeductibleAmount,
     pendingReceipts: receipts.filter(r => r.status === 'pending').length
   };
+
+  // Load receipts on component mount
+  React.useEffect(() => {
+    if (user?.id) {
+      dispatch(fetchReceipts({ userId: user.id }));
+    }
+  }, [dispatch, user?.id]);
 
   // Simulate OCR processing
   const processGeminiOCR = async (file: File) => {
@@ -180,9 +130,11 @@ export default function ReceiptManagement() {
   };
 
 
-  const addReceipt = (receiptData: Partial<ReceiptData>) => {
-    const newReceipt: ReceiptData = {
-      id: Date.now().toString(),
+  const handleAddReceipt = async (receiptData: any) => {
+    if (!user?.id) return;
+
+    const newReceiptData = {
+      userId: user.id,
       date: receiptData.date || new Date().toISOString().split('T')[0],
       vendor: receiptData.vendor || '',
       amount: receiptData.amount || 0,
@@ -196,21 +148,33 @@ export default function ReceiptManagement() {
       notes: receiptData.notes || '',
       imageUrl: receiptData.imageUrl || ocrResultImageUrl
     };
-    setReceipts(prev => [newReceipt, ...prev]);
+
+    const result = await dispatch(addReceipt({ receipt: newReceiptData }));
+    
+    if (addReceipt.fulfilled.match(result)) {
+      setShowAddManual(false);
+      setOcrResult(null);
+      setOCRResultImageUrl(undefined);
+    }
+  };
+
+  const handleUpdateReceipt = async (updatedReceipt: any) => {
+    const result = await dispatch(updateReceipt({ receipt: updatedReceipt }));
+    
+    if (updateReceipt.fulfilled.match(result)) {
+      setEditingReceipt(null);
+    }
+  };
+
+  const handleDeleteReceipt = async (receiptId: string) => {
+    await dispatch(deleteReceipt({ receiptId }));
+  };
+
+  const addReceiptLegacy = (receiptData: any) => {
+    handleAddReceipt(receiptData);
     setShowAddManual(false);
     setOcrResult(null);
     setOCRResultImageUrl(undefined);
-  };
-
-  const updateReceipt = (updatedReceipt: ReceiptData) => {
-    setReceipts(prev => prev.map(receipt => 
-      receipt.id === updatedReceipt.id ? updatedReceipt : receipt
-    ));
-    setEditingReceipt(null);
-  };
-
-  const deleteReceipt = (receiptId: string) => {
-    setReceipts(prev => prev.filter(receipt => receipt.id !== receiptId));
   };
 
   const handleCancelManualEntry = () => {
@@ -444,7 +408,7 @@ export default function ReceiptManagement() {
                     Edit
                   </button>
                   <button
-                    onClick={() => deleteReceipt(receipt.id)}
+                    onClick={() => handleDeleteReceipt(receipt.id)}
                     className="bg-red-100 hover:bg-red-200 text-red-700 py-2 px-3 rounded-lg text-sm font-medium transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -463,7 +427,7 @@ export default function ReceiptManagement() {
             error={ocrError}
             onAccept={() => {
               if (!ocrResult) return;
-              addReceipt({
+              handleAddReceipt({
                 vendor: ocrResult.vendor,
                 amount: ocrResult.amount,
                 date: ocrResult.date,
@@ -499,7 +463,7 @@ export default function ReceiptManagement() {
         {(showAddManual || editingReceipt) && (
           <ReceiptModal
             receipt={editingReceipt}
-            onSave={editingReceipt ? updateReceipt : addReceipt}
+            onSave={editingReceipt ? handleUpdateReceipt : addReceiptLegacy}
             onCancel={handleCancelManualEntry}
             title={editingReceipt ? 'Edit Receipt' : 'Add Receipt'}
             categories={categories}

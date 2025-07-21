@@ -22,6 +22,8 @@ import {
   X,
   Receipt
 } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchJournalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry } from '../../store/slices/journalSlice';
 import JournalEntryModal from '../modals/electronicJournal/JournalEntryModal';
 import SignaturePadModal from '../modals/electronicJournal/SignaturePadModal';
 import EntryDetailsModal from '../modals/electronicJournal/EntryDetailsModal';
@@ -30,43 +32,9 @@ import InvoiceModal from '../modals/electronicJournal/InvoiceModal';
 import { GeminiIDResult } from '../utils/geminiIdService';
 
 export default function ElectronicJournal() {
-  const [entries, setEntries] = useState<JournalEntry[]>([
-    {
-      id: '1',
-      date: '2025-01-15',
-      time: '10:30 AM',
-      clientName: 'John Smith',
-      clientId: 'JS001',
-      documentType: 'Power of Attorney',
-      notaryFee: 15.00,
-      location: '123 Main St, Downtown',
-      witnessRequired: true,
-      witnessName: 'Jane Doe',
-      idVerified: true,
-      idType: 'Driver\'s License',
-      idNumber: 'DL123456789',
-      idExpiration: '2027-03-15',
-      notes: 'Client appeared in person, ID verified successfully',
-      status: 'completed'
-    },
-    {
-      id: '2',
-      date: '2025-01-14',
-      time: '2:15 PM',
-      clientName: 'Sarah Johnson',
-      clientId: 'SJ002',
-      documentType: 'Affidavit',
-      notaryFee: 10.00,
-      location: '456 Oak Ave, Uptown',
-      witnessRequired: false,
-      idVerified: true,
-      idType: 'Passport',
-      idNumber: 'P987654321',
-      idExpiration: '2029-08-20',
-      notes: 'Remote notarization via video call',
-      status: 'completed'
-    }
-  ]);
+  const dispatch = useAppDispatch();
+  const { entries, isLoading, totalFees, completedEntries } = useAppSelector((state) => state.journal);
+  const { user } = useAppSelector((state) => state.auth);
 
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
@@ -92,23 +60,35 @@ export default function ElectronicJournal() {
 
   const stats = {
     totalEntries: entries.length,
-    completedEntries: entries.filter(e => e.status === 'completed').length,
+    completedEntries,
     pendingEntries: entries.filter(e => e.status === 'pending').length,
-    totalFees: entries.filter(e => e.status === 'completed').reduce((sum, e) => sum + e.notaryFee, 0)
+    totalFees
   };
 
-  const addEntry = (entryData: Partial<JournalEntry>) => {
-    const newEntry: JournalEntry = {
-      id: Date.now().toString(),
+  // Load journal entries on component mount
+  React.useEffect(() => {
+    if (user?.id) {
+      dispatch(fetchJournalEntries({ userId: user.id }));
+    }
+  }, [dispatch, user?.id]);
+
+  const handleAddEntry = async (entryData: any) => {
+    if (!user?.id) return;
+
+    const newEntryData = {
+      userId: user.id,
       date: entryData.date || new Date().toISOString().split('T')[0],
       time: entryData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       clientName: entryData.clientName || '',
       clientId: entryData.clientId || '',
+      appointmentType: entryData.appointmentType || 'in-person',
       documentType: entryData.documentType || '',
       notaryFee: entryData.notaryFee || 0,
       location: entryData.location || '',
       witnessRequired: entryData.witnessRequired || false,
       witnessName: entryData.witnessName || '',
+      signature: entryData.signature,
+      thumbprint: entryData.thumbprint,
       idVerified: entryData.idVerified || false,
       idType: entryData.idType || '',
       idNumber: entryData.idNumber || '',
@@ -116,19 +96,38 @@ export default function ElectronicJournal() {
       notes: entryData.notes || '',
       status: entryData.status || 'pending'
     };
-    setEntries(prev => [newEntry, ...prev]);
+
+    const result = await dispatch(addJournalEntry({ entry: newEntryData }));
+    
+    if (addJournalEntry.fulfilled.match(result)) {
+      setShowAddEntry(false);
+    }
+  };
+
+  const handleUpdateEntry = async (updatedEntry: any) => {
+    const result = await dispatch(updateJournalEntry({ entry: updatedEntry }));
+    
+    if (updateJournalEntry.fulfilled.match(result)) {
+      setEditingEntry(null);
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: string) => {
+    await dispatch(deleteJournalEntry({ entryId }));
+  };
+
+  const addEntry = (entryData: any) => {
+    handleAddEntry(entryData);
     setShowAddEntry(false);
   };
 
-  const updateEntry = (updatedEntry: JournalEntry) => {
-    setEntries(prev => prev.map(entry => 
-      entry.id === updatedEntry.id ? updatedEntry : entry
-    ));
+  const updateEntry = (updatedEntry: any) => {
+    handleUpdateEntry(updatedEntry);
     setEditingEntry(null);
   };
 
   const deleteEntry = (entryId: string) => {
-    setEntries(prev => prev.filter(entry => entry.id !== entryId));
+    handleDeleteEntry(entryId);
   };
 
   const exportJournal = () => {
@@ -287,6 +286,20 @@ export default function ElectronicJournal() {
                       <PenTool className="h-4 w-4 mr-2" />
                       <span>Fee: ${entry.notaryFee.toFixed(2)}</span>
                     </div>
+                  </div>
+                  <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2">
+                    {entry.signature && (
+                      <span className="flex items-center text-purple-600">
+                        <PenTool className="h-3 w-3 mr-1" />
+                        Signature
+                      </span>
+                    )}
+                    {entry.thumbprint && (
+                      <span className="flex items-center text-green-600">
+                        <span className="w-3 h-3 mr-1 rounded-full bg-green-600"></span>
+                        Fingerprint
+                      </span>
+                    )}
                   </div>
                   {entry.notes && (
                     <p className="text-sm text-gray-500 mt-2">{entry.notes}</p>

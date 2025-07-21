@@ -20,35 +20,15 @@ import {
   Shield,
   Smartphone
 } from 'lucide-react';
-
-interface Reminder {
-  id: string;
-  title: string;
-  description: string;
-  triggerType: 'time_before' | 'time_after' | 'specific_date';
-  triggerValue: string;
-  isActive: boolean;
-  lastTriggered?: string;
-  timesTriggered: number;
-}
-
-interface EmailTemplate {
-  id: string;
-  name: string;
-  subject: string;
-  content: string;
-  category: 'appointment' | 'follow_up' | 'marketing' | 'reminder';
-  timesUsed: number;
-  timesSent: number;
-}
-
-interface SMSTemplate {
-  id: string;
-  name: string;
-  content: string;
-  category: 'confirmation' | 'reminder' | 'update' | 'marketing';
-  timesSent: number;
-}
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { 
+  fetchReminders, 
+  fetchEmailTemplates, 
+  fetchSMSTemplates,
+  addReminder,
+  updateReminder,
+  deleteReminder
+} from '../../store/slices/automationSlice';
 
 interface PlatformIntegration {
   id: string;
@@ -64,74 +44,18 @@ interface PlatformIntegration {
 }
 
 export default function AutomationDashboard() {
+  const dispatch = useAppDispatch();
+  const { reminders, emailTemplates, smsTemplates, isLoading } = useAppSelector((state) => state.automation);
+  const { user } = useAppSelector((state) => state.auth);
+  
   const [activeTab, setActiveTab] = useState<'reminders' | 'emails' | 'sms' | 'integrations'>('reminders');
   const [showAddReminder, setShowAddReminder] = useState(false);
   const [showAddEmail, setShowAddEmail] = useState(false);
   const [showAddSMS, setShowAddSMS] = useState(false);
-  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
-  const [editingEmail, setEditingEmail] = useState<EmailTemplate | null>(null);
-  const [editingSMS, setEditingSMS] = useState<SMSTemplate | null>(null);
+  const [editingReminder, setEditingReminder] = useState<any>(null);
+  const [editingEmail, setEditingEmail] = useState<any>(null);
+  const [editingSMS, setEditingSMS] = useState<any>(null);
 
-  const [reminders, setReminders] = useState<Reminder[]>([
-    {
-      id: '1',
-      title: 'Appointment Confirmation',
-      description: 'Send confirmation 24 hours before appointment',
-      triggerType: 'time_before',
-      triggerValue: '24 hours',
-      isActive: true,
-      lastTriggered: '2025-01-14',
-      timesTriggered: 45
-    },
-    {
-      id: '2',
-      title: 'Follow-up Reminder',
-      description: 'Send follow-up 3 days after appointment',
-      triggerType: 'time_after',
-      triggerValue: '3 days',
-      isActive: true,
-      lastTriggered: '2025-01-13',
-      timesTriggered: 32
-    }
-  ]);
-
-  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([
-    {
-      id: '1',
-      name: 'Appointment Confirmation',
-      subject: 'Appointment Confirmation - {{date}} at {{time}}',
-      content: 'Dear {{client_name}},\n\nThis confirms your notary appointment on {{date}} at {{time}}.\n\nLocation: {{location}}\nEstimated cost: {{total_amount}}\n\nPlease bring valid ID.\n\nBest regards,\n{{notary_name}}',
-      category: 'appointment',
-      timesUsed: 156,
-      timesSent: 156
-    },
-    {
-      id: '2',
-      name: 'Thank You Follow-up',
-      subject: 'Thank you for choosing our notary services',
-      content: 'Dear {{client_name}},\n\nThank you for using our notary services. We hope everything went smoothly.\n\nIf you need any additional services, please don\'t hesitate to contact us.\n\nBest regards,\n{{notary_name}}',
-      category: 'follow_up',
-      timesUsed: 89,
-      timesSent: 89
-    }
-  ]);
-
-  const [smsTemplates, setSmsTemplates] = useState<SMSTemplate[]>([
-    {
-      id: '1',
-      name: 'Appointment Reminder',
-      content: 'Hi {{client_name}}, reminder: notary appointment tomorrow at {{time}}. Please bring valid ID. Reply STOP to opt out.',
-      category: 'reminder',
-      timesSent: 234
-    },
-    {
-      id: '2',
-      name: 'On My Way',
-      content: 'Hi {{client_name}}, I\'m on my way to our appointment. ETA: {{eta}} minutes. See you soon!',
-      category: 'update',
-      timesSent: 67
-    }
-  ]);
 
   const [platformIntegrations, setPlatformIntegrations] = useState<PlatformIntegration[]>([
     {
@@ -230,6 +154,15 @@ export default function AutomationDashboard() {
     }
   ]);
 
+  // Load automation data on component mount
+  React.useEffect(() => {
+    if (user?.id) {
+      dispatch(fetchReminders({ userId: user.id }));
+      dispatch(fetchEmailTemplates({ userId: user.id }));
+      dispatch(fetchSMSTemplates({ userId: user.id }));
+    }
+  }, [dispatch, user?.id]);
+
   // Calculate stats
   const stats = {
     totalReminders: reminders.length,
@@ -241,9 +174,11 @@ export default function AutomationDashboard() {
     totalIntegrations: platformIntegrations.length
   };
 
-  const addReminder = (reminderData: Partial<Reminder>) => {
-    const newReminder: Reminder = {
-      id: Date.now().toString(),
+  const handleAddReminder = async (reminderData: any) => {
+    if (!user?.id) return;
+
+    const newReminderData = {
+      userId: user.id,
       title: reminderData.title || '',
       description: reminderData.description || '',
       triggerType: reminderData.triggerType || 'time_before',
@@ -251,25 +186,45 @@ export default function AutomationDashboard() {
       isActive: true,
       timesTriggered: 0
     };
-    setReminders(prev => [newReminder, ...prev]);
+
+    const result = await dispatch(addReminder({ reminder: newReminderData }));
+    
+    if (addReminder.fulfilled.match(result)) {
+      setShowAddReminder(false);
+    }
+  };
+
+  const handleUpdateReminder = async (updatedReminder: any) => {
+    const result = await dispatch(updateReminder({ reminder: updatedReminder }));
+    
+    if (updateReminder.fulfilled.match(result)) {
+      setEditingReminder(null);
+    }
+  };
+
+  const handleDeleteReminder = async (reminderId: string) => {
+    await dispatch(deleteReminder({ reminderId }));
+  };
+
+  const addReminderLegacy = (reminderData: any) => {
+    handleAddReminder(reminderData);
     setShowAddReminder(false);
   };
 
-  const updateReminder = (updatedReminder: Reminder) => {
-    setReminders(prev => prev.map(reminder => 
-      reminder.id === updatedReminder.id ? updatedReminder : reminder
-    ));
+  const updateReminderLegacy = (updatedReminder: any) => {
+    handleUpdateReminder(updatedReminder);
     setEditingReminder(null);
   };
 
-  const deleteReminder = (reminderId: string) => {
-    setReminders(prev => prev.filter(reminder => reminder.id !== reminderId));
+  const deleteReminderLegacy = (reminderId: string) => {
+    handleDeleteReminder(reminderId);
   };
 
   const toggleReminderStatus = (reminderId: string) => {
-    setReminders(prev => prev.map(reminder => 
-      reminder.id === reminderId ? { ...reminder, isActive: !reminder.isActive } : reminder
-    ));
+    const reminder = reminders.find(r => r.id === reminderId);
+    if (reminder) {
+      handleUpdateReminder({ ...reminder, isActive: !reminder.isActive });
+    }
   };
 
   const toggleIntegration = (integrationId: string) => {
@@ -480,7 +435,7 @@ export default function AutomationDashboard() {
                             <Edit3 className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => deleteReminder(reminder.id)}
+                            onClick={() => handleDeleteReminder(reminder.id)}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -672,7 +627,7 @@ export default function AutomationDashboard() {
         {/* Modals */}
         {showAddReminder && (
           <ReminderModal
-            onSave={addReminder}
+            onSave={addReminderLegacy}
             onCancel={() => setShowAddReminder(false)}
             title="Add New Reminder"
           />
@@ -681,7 +636,7 @@ export default function AutomationDashboard() {
         {editingReminder && (
           <ReminderModal
             reminder={editingReminder}
-            onSave={updateReminder}
+            onSave={updateReminderLegacy}
             onCancel={() => setEditingReminder(null)}
             title="Edit Reminder"
           />

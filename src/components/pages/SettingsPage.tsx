@@ -24,7 +24,8 @@ import {
   Save,
   ArrowLeft
 } from 'lucide-react';
-import { supabase } from '../../supabase/supabaseClient';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchUserSettings, updateUserSettings, exportUserData } from '../../store/slices/settingsSlice';
 
 interface SettingsPageProps {
   user: any;
@@ -33,6 +34,8 @@ interface SettingsPageProps {
 }
 
 export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsPageProps) {
+  const dispatch = useAppDispatch();
+  const { settings: userSettings, isLoading: settingsLoading } = useAppSelector((state) => state.settings);
   const [activeTab, setActiveTab] = useState('notifications');
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -44,7 +47,7 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
   };
   
   // Settings state
-  const [settings, setSettings] = useState({
+  const [localSettings, setLocalSettings] = useState({
     // Notification Settings
     emailNotifications: true,
     smsNotifications: false,
@@ -90,30 +93,60 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
   });
 
   useEffect(() => {
-    loadUserSettings();
-  }, [user]);
+    if (user?.id) {
+      dispatch(fetchUserSettings({ userId: user.id }));
+    }
+  }, [dispatch, user?.id]);
 
-  const loadUserSettings = async () => {
-    // In a real app, you would load user settings from the database
-    // For now, we'll use default settings
-    console.log('Loading user settings for:', user.id);
-  };
+  // Update local settings when Redux settings change
+  useEffect(() => {
+    if (userSettings) {
+      setLocalSettings({
+        emailNotifications: userSettings.emailNotifications,
+        smsNotifications: userSettings.smsNotifications,
+        pushNotifications: userSettings.pushNotifications,
+        appointmentReminders: userSettings.appointmentReminders,
+        marketingEmails: userSettings.marketingEmails,
+        securityAlerts: userSettings.securityAlerts,
+        profileVisibility: userSettings.profileVisibility,
+        dataSharing: userSettings.dataSharing,
+        analyticsTracking: userSettings.analyticsTracking,
+        theme: userSettings.theme,
+        language: userSettings.language,
+        timezone: userSettings.timezone,
+        dateFormat: userSettings.dateFormat,
+        currency: userSettings.currency,
+        twoFactorEnabled: userSettings.twoFactorEnabled,
+        sessionTimeout: userSettings.sessionTimeout,
+        loginAlerts: userSettings.loginAlerts,
+        defaultFee: userSettings.defaultFee,
+        autoBackup: userSettings.autoBackup,
+        exportFormat: userSettings.exportFormat,
+        invoiceTemplate: userSettings.invoiceTemplate
+      });
+    }
+  }, [userSettings]);
 
   const saveSettings = async () => {
-    setLoading(true);
+    if (!user?.id || !userSettings) return;
+
     try {
-      // In a real app, you would save settings to the database
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      const updatedSettings = {
+        ...userSettings,
+        ...localSettings
+      };
+      
+      await dispatch(updateUserSettings({ settings: updatedSettings }));
       alert('Settings saved successfully!');
     } catch (error) {
       console.error('Error saving settings:', error);
       alert('Failed to save settings. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
   const handlePasswordChange = async () => {
+    const { supabase } = await import('../../supabase/supabaseClient');
+    
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       alert('New passwords do not match');
       return;
@@ -144,6 +177,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
   };
 
   const handleDeleteAccount = async () => {
+    const { supabase } = await import('../../supabase/supabaseClient');
+    
     if (!showDeleteConfirm) {
       setShowDeleteConfirm(true);
       return;
@@ -173,6 +208,54 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
   };
 
   const exportData = async (format: 'json' | 'csv' | 'pdf') => {
+    if (!user?.id) return;
+
+    try {
+      const result = await dispatch(exportUserData({ userId: user.id, format }));
+      
+      if (exportUserData.fulfilled.match(result)) {
+        const blob = result.payload;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `notary-data-export.${format}`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        alert(`Data exported successfully as ${format.toUpperCase()}`);
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
+  const isLoading = settingsLoading || loading;
+
+  const exportDataLegacy = async (format: 'json' | 'csv' | 'pdf') => {
+    if (!user?.id) return;
+
+    try {
+      const result = await dispatch(exportUserData({ userId: user.id, format }));
+      
+      if (exportUserData.fulfilled.match(result)) {
+        const blob = result.payload;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `notary-data-export.${format}`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        alert(`Data exported successfully as ${format.toUpperCase()}`);
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
+  const exportDataOld = async (format: 'json' | 'csv' | 'pdf') => {
     setLoading(true);
     try {
       // Simulate data export
@@ -180,7 +263,7 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
       
       const data = {
         user: user,
-        settings: settings,
+        settings: localSettings,
         exportDate: new Date().toISOString()
       };
 
@@ -280,8 +363,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                             <label className="relative inline-flex items-center cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={settings[item.key as keyof typeof settings] as boolean}
-                                onChange={(e) => setSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                                checked={localSettings[item.key as keyof typeof localSettings] as boolean}
+                                onChange={(e) => setLocalSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
                                 className="sr-only peer"
                               />
                               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -309,8 +392,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                             <label className="relative inline-flex items-center cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={settings[item.key as keyof typeof settings] as boolean}
-                                onChange={(e) => setSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                                checked={localSettings[item.key as keyof typeof localSettings] as boolean}
+                                onChange={(e) => setLocalSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
                                 className="sr-only peer"
                               />
                               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -332,8 +415,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Profile Visibility</label>
                       <select
-                        value={settings.profileVisibility}
-                        onChange={(e) => setSettings(prev => ({ ...prev, profileVisibility: e.target.value }))}
+                        value={localSettings.profileVisibility}
+                        onChange={(e) => setLocalSettings(prev => ({ ...prev, profileVisibility: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="private">Private</option>
@@ -355,8 +438,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={settings[item.key as keyof typeof settings] as boolean}
-                              onChange={(e) => setSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                              checked={localSettings[item.key as keyof typeof localSettings] as boolean}
+                              onChange={(e) => setLocalSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
                               className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -448,10 +531,10 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                             </div>
                             <button
                               onClick={handlePasswordChange}
-                              disabled={loading}
+                              disabled={isLoading}
                               className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                             >
-                              {loading ? 'Updating...' : 'Update Password'}
+                              {isLoading ? 'Updating...' : 'Update Password'}
                             </button>
                           </div>
                         )}
@@ -463,8 +546,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
                         <select
-                          value={settings.sessionTimeout}
-                          onChange={(e) => setSettings(prev => ({ ...prev, sessionTimeout: parseInt(e.target.value) }))}
+                          value={localSettings.sessionTimeout}
+                          onChange={(e) => setLocalSettings(prev => ({ ...prev, sessionTimeout: parseInt(e.target.value) }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value={15}>15 minutes</option>
@@ -483,8 +566,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={settings.loginAlerts}
-                            onChange={(e) => setSettings(prev => ({ ...prev, loginAlerts: e.target.checked }))}
+                            checked={localSettings.loginAlerts}
+                            onChange={(e) => setLocalSettings(prev => ({ ...prev, loginAlerts: e.target.checked }))}
                             className="sr-only peer"
                           />
                           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -509,8 +592,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                           <input
                             type="number"
                             step="0.01"
-                            value={settings.defaultFee}
-                            onChange={(e) => setSettings(prev => ({ ...prev, defaultFee: parseFloat(e.target.value) || 0 }))}
+                            value={localSettings.defaultFee}
+                            onChange={(e) => setLocalSettings(prev => ({ ...prev, defaultFee: parseFloat(e.target.value) || 0 }))}
                             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
                         </div>
@@ -518,8 +601,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
                         <select
-                          value={settings.currency}
-                          onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
+                          value={localSettings.currency}
+                          onChange={(e) => setLocalSettings(prev => ({ ...prev, currency: e.target.value }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="USD">USD - US Dollar</option>
@@ -534,8 +617,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Date Format</label>
                         <select
-                          value={settings.dateFormat}
-                          onChange={(e) => setSettings(prev => ({ ...prev, dateFormat: e.target.value }))}
+                          value={localSettings.dateFormat}
+                          onChange={(e) => setLocalSettings(prev => ({ ...prev, dateFormat: e.target.value }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -546,8 +629,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
                         <select
-                          value={settings.timezone}
-                          onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
+                          value={localSettings.timezone}
+                          onChange={(e) => setLocalSettings(prev => ({ ...prev, timezone: e.target.value }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="America/Los_Angeles">Pacific Time</option>
@@ -566,8 +649,8 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={settings.autoBackup}
-                          onChange={(e) => setSettings(prev => ({ ...prev, autoBackup: e.target.checked }))}
+                          checked={localSettings.autoBackup}
+                          onChange={(e) => setLocalSettings(prev => ({ ...prev, autoBackup: e.target.checked }))}
                           className="sr-only peer"
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -588,24 +671,24 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                       <p className="text-gray-600 mb-4">Download a copy of your data in various formats</p>
                       <div className="flex flex-wrap gap-3">
                         <button
-                          onClick={() => exportData('json')}
-                          disabled={loading}
+                          onClick={() => exportDataLegacy('json')}
+                          disabled={isLoading}
                           className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Export as JSON
                         </button>
                         <button
-                          onClick={() => exportData('csv')}
-                          disabled={loading}
+                          onClick={() => exportDataLegacy('csv')}
+                          disabled={isLoading}
                           className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Export as CSV
                         </button>
                         <button
-                          onClick={() => exportData('pdf')}
-                          disabled={loading}
+                          onClick={() => exportDataLegacy('pdf')}
+                          disabled={isLoading}
                           className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
                         >
                           <Download className="h-4 w-4 mr-2" />
@@ -666,10 +749,10 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                               <div className="flex space-x-3">
                                 <button
                                   onClick={handleDeleteAccount}
-                                  disabled={loading}
+                                  disabled={isLoading}
                                   className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                                 >
-                                  {loading ? 'Deleting...' : 'Yes, Delete My Account'}
+                                  {isLoading ? 'Deleting...' : 'Yes, Delete My Account'}
                                 </button>
                                 <button
                                   onClick={() => setShowDeleteConfirm(false)}
@@ -692,15 +775,15 @@ export default function SettingsPage({ user, onUpdateUser, onLogout }: SettingsP
                 <div className="flex justify-end">
                   <button
                     onClick={saveSettings}
-                    disabled={loading}
+                    disabled={isLoading}
                     className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
                   >
-                    {loading ? (
+                    {isLoading ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     ) : (
                       <Save className="h-4 w-4 mr-2" />
                     )}
-                    {loading ? 'Saving...' : 'Save Settings'}
+                    {isLoading ? 'Saving...' : 'Save Settings'}
                   </button>
                 </div>
               </div>

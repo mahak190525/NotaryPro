@@ -1,50 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Play, Square, Car, Calendar, DollarSign, Plus, Edit3, Trash2 } from 'lucide-react';
-
-interface Trip {
-  id: string;
-  startLocation: string;
-  endLocation: string;
-  distance: number;
-  date: string;
-  purpose: string;
-  category: 'business' | 'personal';
-  rate: number;
-  amount: number;
-  isTracking?: boolean;
-}
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchMileageTrips, addMileageTrip, updateMileageTrip, deleteMileageTrip } from '../../store/slices/mileageSlice';
 
 export default function MileageTracker() {
-  const [trips, setTrips] = useState<Trip[]>([
-    {
-      id: '1',
-      startLocation: '123 Main St, Downtown',
-      endLocation: '456 Oak Ave, Uptown',
-      distance: 12.5,
-      date: '2025-01-15',
-      purpose: 'Client meeting - Document signing',
-      category: 'business',
-      rate: 0.67,
-      amount: 8.38
-    },
-    {
-      id: '2',
-      startLocation: '789 Pine Rd, Westside',
-      endLocation: '321 Elm St, Eastside',
-      distance: 8.2,
-      date: '2025-01-14',
-      purpose: 'Notarization appointment',
-      category: 'business',
-      rate: 0.67,
-      amount: 5.49
-    }
-  ]);
+  const dispatch = useAppDispatch();
+  const { trips, isLoading, totalMiles, businessMiles, totalDeduction } = useAppSelector((state) => state.mileage);
+  const { user } = useAppSelector((state) => state.auth);
 
   const [isTracking, setIsTracking] = useState(false);
-  const [currentTrip, setCurrentTrip] = useState<Partial<Trip>>({});
+  const [currentTrip, setCurrentTrip] = useState<any>({});
   const [showAddTrip, setShowAddTrip] = useState(false);
-  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [editingTrip, setEditingTrip] = useState<any>(null);
   const [filter, setFilter] = useState<'all' | 'business' | 'personal'>('all');
+
+  // Load mileage trips on component mount
+  React.useEffect(() => {
+    if (user?.id) {
+      dispatch(fetchMileageTrips({ userId: user.id }));
+    }
+  }, [dispatch, user?.id]);
 
   const startTracking = () => {
     setIsTracking(true);
@@ -53,64 +28,85 @@ export default function MileageTracker() {
       startLocation: 'Current Location',
       date: new Date().toISOString().split('T')[0],
       category: 'business',
-      rate: 0.67,
+      rate: 0.70,
       isTracking: true
     });
   };
 
   const stopTracking = () => {
     if (currentTrip.id) {
-      const newTrip: Trip = {
+      const newTrip = {
         ...currentTrip,
         endLocation: 'Current Location',
         distance: Math.random() * 20 + 5, // Simulated distance
         purpose: 'Business trip',
         amount: 0,
         isTracking: false
-      } as Trip;
+      };
       
       newTrip.amount = newTrip.distance * newTrip.rate;
       
-      setTrips(prev => [newTrip, ...prev]);
+      handleAddTrip(newTrip);
       setCurrentTrip({});
     }
     setIsTracking(false);
   };
 
-  const addManualTrip = (tripData: Partial<Trip>) => {
-    const newTrip: Trip = {
-      id: Date.now().toString(),
+  const handleAddTrip = async (tripData: any) => {
+    if (!user?.id) return;
+
+    const newTripData = {
+      userId: user.id,
       startLocation: tripData.startLocation || '',
       endLocation: tripData.endLocation || '',
       distance: tripData.distance || 0,
       date: tripData.date || new Date().toISOString().split('T')[0],
       purpose: tripData.purpose || '',
       category: tripData.category || 'business',
-      rate: 0.67,
-      amount: (tripData.distance || 0) * 0.67
+      rate: 0.70,
+      amount: (tripData.distance || 0) * 0.70
     };
+
+    const result = await dispatch(addMileageTrip({ trip: newTripData }));
     
-    setTrips(prev => [newTrip, ...prev]);
+    if (addMileageTrip.fulfilled.match(result)) {
+      setShowAddTrip(false);
+    }
+  };
+
+  const handleUpdateTrip = async (updatedTrip: any) => {
+    updatedTrip.amount = updatedTrip.distance * updatedTrip.rate;
+    const result = await dispatch(updateMileageTrip({ trip: updatedTrip }));
+    
+    if (updateMileageTrip.fulfilled.match(result)) {
+      setEditingTrip(null);
+    }
+  };
+
+  const handleDeleteTrip = async (tripId: string) => {
+    await dispatch(deleteMileageTrip({ tripId }));
+  };
+
+  const addManualTrip = (tripData: any) => {
+    handleAddTrip(tripData);
     setShowAddTrip(false);
   };
 
-  const updateTrip = (updatedTrip: Trip) => {
-    updatedTrip.amount = updatedTrip.distance * updatedTrip.rate;
-    setTrips(prev => prev.map(trip => trip.id === updatedTrip.id ? updatedTrip : trip));
+  const updateTrip = (updatedTrip: any) => {
+    handleUpdateTrip(updatedTrip);
     setEditingTrip(null);
   };
 
   const deleteTrip = (tripId: string) => {
-    setTrips(prev => prev.filter(trip => trip.id !== tripId));
+    handleDeleteTrip(tripId);
   };
 
   const filteredTrips = trips.filter(trip => 
     filter === 'all' || trip.category === filter
   );
 
-  const totalMiles = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
-  const totalAmount = filteredTrips.reduce((sum, trip) => sum + trip.amount, 0);
-  const businessMiles = trips.filter(trip => trip.category === 'business').reduce((sum, trip) => sum + trip.distance, 0);
+  const filteredTotalMiles = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
+  const filteredTotalAmount = filteredTrips.reduce((sum, trip) => sum + trip.amount, 0);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -127,7 +123,7 @@ export default function MileageTracker() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Miles</p>
-                <p className="text-2xl font-bold text-gray-900">{totalMiles.toFixed(1)}</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredTotalMiles.toFixed(1)}</p>
               </div>
               <Car className="h-8 w-8 text-blue-600" />
             </div>
@@ -145,7 +141,7 @@ export default function MileageTracker() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Tax Deduction</p>
-                <p className="text-2xl font-bold text-purple-600">${totalAmount.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-purple-600">${filteredTotalAmount.toFixed(2)}</p>
               </div>
               <DollarSign className="h-8 w-8 text-purple-600" />
             </div>
@@ -154,7 +150,7 @@ export default function MileageTracker() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Current Rate</p>
-                <p className="text-2xl font-bold text-orange-600">$0.67</p>
+                <p className="text-2xl font-bold text-orange-600">$0.70</p>
               </div>
               <Calendar className="h-8 w-8 text-orange-600" />
             </div>

@@ -71,7 +71,7 @@ export default function SignatureCaptureModal({
   const startThumbprintScan = () => {
     setIsScanning(true);
     
-    // Simulate bluetooth fingerprint scanner
+    // Simulate USB fingerprint scanner
     setTimeout(() => {
       // Mock thumbprint data - in real implementation, this would come from the scanner
       const mockThumbprint = generateMockThumbprint();
@@ -200,7 +200,7 @@ export default function SignatureCaptureModal({
                   <>
                     <Fingerprint className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600 mb-4">
-                      Connect your Bluetooth fingerprint scanner and click scan
+                      Connect your USB fingerprint scanner and click scan
                     </p>
                     <button
                       onClick={startThumbprintScan}
