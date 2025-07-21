@@ -90,6 +90,35 @@ export default function EntryDetailsModal({ entry, onClose }: EntryDetailsModalP
               <p className="text-gray-900">{entry.notes}</p>
             </div>
           )}
+
+          {/* Biometric Data */}
+          {(entry.signature || entry.thumbprint) && (
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-lg font-medium text-gray-900 mb-3">Biometric Data</h4>
+              <div className="grid md:grid-cols-2 gap-4">
+                {entry.signature && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Digital Signature</label>
+                    <img
+                      src={entry.signature}
+                      alt="Digital Signature"
+                      className="w-full max-h-24 object-contain border border-gray-200 rounded bg-white"
+                    />
+                  </div>
+                )}
+                {entry.thumbprint && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Fingerprint</label>
+                    <img
+                      src={entry.thumbprint}
+                      alt="Fingerprint"
+                      className="w-24 h-24 object-contain border border-gray-200 rounded bg-white mx-auto"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 pt-4 border-t border-gray-200">

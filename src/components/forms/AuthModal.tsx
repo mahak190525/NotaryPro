@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { X, Mail, Eye, EyeOff, Chrome } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import {jwtDecode}  from "jwt-decode";
-import { supabase } from "../supabase/supabaseClient"
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { signInWithEmail, signUpWithEmail, signInWithGoogle } from '../../store/slices/authSlice';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -11,9 +12,10 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
+  const dispatch = useAppDispatch();
+  const { error, isLoading } = useAppSelector((state) => state.auth);
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -65,73 +67,40 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!validateForm()) return;
+    if (!validateForm()) return;
 
-  setIsLoading(true);
 
-  try {
-    if (isLogin) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (error) throw error;
-
-      const { user } = data;
-      console.log(user);
-
-      onAuthSuccess({
-        id: user.id,
-        email: user.email,
-        firstName: user.identities[0].identity_data.first_name,
-        lastName: user.identities[0].identity_data.last_name,
-        businessName: user.identities[0].identity_data.business_name,
-        avatar: '',
-        provider: 'email',
-      });
-
-      onClose();
-    } else {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            business_name: formData.businessName,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      const { user } = data;
-
-      if (user) {
-        const { error: insertError } = await supabase.from('users').insert({
-          id: user.id,
+    try {
+      if (isLogin) {
+        const result = await dispatch(signInWithEmail({
           email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          business_name: formData.businessName,
-        });
-
-        if (insertError) {
-          console.error('Insert error:', insertError.message);
+          password: formData.password,
+        }));
+        
+        if (signInWithEmail.fulfilled.match(result)) {
+          onAuthSuccess(result.payload);
+          onClose();
+        }
+      } else {
+        const result = await dispatch(signUpWithEmail({
+          email: formData.email,
+          password: formData.password,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          businessName: formData.businessName,
+        }));
+        
+        if (signUpWithEmail.fulfilled.match(result)) {
+          onAuthSuccess(result.payload);
+          onClose();
         }
       }
+    } catch (err: any) {
+      console.error('Auth error:', err);
     }
-  } catch (err: any) {
-    console.error(err);
-    alert(err.message || 'Something went wrong');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const resetForm = () => {
     setFormData({
@@ -179,34 +148,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
             onSuccess={async (credentialResponse) => {
               if (credentialResponse.credential) {
                 const decoded: any = jwtDecode(credentialResponse.credential);
-                console.log(decoded);
-          
-                const user = {
-                  id: decoded.sub,
-                  email: decoded.email,
-                  firstName: decoded.given_name || '',
-                  lastName: decoded.family_name || '',
-                  businessName: 'Google User',
-                  avatar: decoded.picture,
-                  provider: 'google'
-                };
-          
-                const { error: insertError } = await supabase.from('google_users').upsert({
-                  id: user.id,
-                  email: user.email,
-                  first_name: user.firstName,
-                  last_name: user.lastName,
-                  avatar_url: user.avatar,
-                  created_at: new Date().toISOString()
-                });
-          
-                if (insertError) {
-                  console.error('Failed to store Google user:', insertError.message);
-                  alert('Google login succeeded but storing user info failed.');
+                
+                const result = await dispatch(signInWithGoogle({ googleUser: decoded }));
+                
+                if (signInWithGoogle.fulfilled.match(result)) {
+                  onAuthSuccess(result.payload);
+                  onClose();
                 }
-          
-                onAuthSuccess(user);
-                onClose();
               }
             }}
             onError={() => {

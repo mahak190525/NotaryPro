@@ -12,12 +12,14 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@react-oauth/google": "0.12.2",
+    "@reduxjs/toolkit": "^2.8.2",
     "@supabase/supabase-js": "^2.51.0",
     "gapi-script": "^1.2.0",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-redux": "^9.2.0",
     "react-router-dom": "^7.6.3",
     "signature_pad": "^5.0.10",
     "tesseract.js": "^6.0.1"

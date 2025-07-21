@@ -318,13 +318,13 @@ export default function MileageReports() {
               <p className="text-sm text-gray-600">Business Miles Driven</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-purple-600">$0.67</p>
+              <p className="text-2xl font-bold text-purple-600">$0.70</p>
               <p className="text-sm text-gray-600">IRS Standard Rate</p>
             </div>
           </div>
           <div className="mt-4 p-4 bg-white rounded-lg border border-gray-200">
             <p className="text-sm text-gray-600">
-              <strong>Note:</strong> This report is based on the IRS standard mileage rate of $0.67 per mile for 2025. 
+              <strong>Note:</strong> This report is based on the IRS standard mileage rate of $0.70 per mile for 2025. 
               Keep detailed records of all business trips for tax filing purposes.
             </p>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle, X, AlertCircle, RotateCcw, Scan, Upload, Eye } from 'lucide-react';
 import { geminiIdService, GeminiIDResult } from '../../../utils/geminiIdService';
-import CameraModal from '../../shared/CameraModal';
+import CameraModal from '../shared/CameraModal';
 
 interface IDScannerModalProps {
   onClose: () => void;

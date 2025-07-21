@@ -1,22 +1,26 @@
-import React from 'react';
-import Navigation from './components/Navigation';
-import HomePage from './components/HomePage';
-import Dashboard from './components/Dashboard';
-import PricingPage from './components/PricingPage';
-import AuthModal from './components/AuthModal';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router } from 'react-router-dom';
+import Navigation from './components/layout/Navigation';
+import HomePage from './components/pages/HomePage';
+import Dashboard from './components/pages/Dashboard';
+import ProfilePage from './components/pages/ProfilePage';
+import SettingsPage from './components/pages/SettingsPage';
+import PricingPage from './components/pages/PricingPage';
+import AuthModal from './components/forms/AuthModal';
+import ProtectedRoute from './components/shared/ProtectedRoute';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-  const [currentPage, setCurrentPage] = React.useState('home');
-  const [showAuthModal, setShowAuthModal] = React.useState(false);
-  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, login, logout, updateUser } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState('home');
 
   // Handle authentication success
   const handleAuthSuccess = (userData: any) => {
     login(userData);
-    setCurrentPage('dashboard');
     setShowAuthModal(false);
+    setCurrentPage('dashboard');
   };
 
   // Handle logout
@@ -30,24 +34,55 @@ function App() {
     setCurrentPage('home');
   };
 
-  // Show loading state while checking authentication
+  // Auto-redirect authenticated users to dashboard
+  useEffect(() => {
+    if (isAuthenticated && currentPage === 'home') {
+      setCurrentPage('dashboard');
+    }
+  }, [isAuthenticated, currentPage]);
+
+  // Show loading spinner while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  // Render page content based on current page
-  const renderPageContent = () => {
-    // If user is authenticated, always show dashboard
-    if (isAuthenticated) {
-      return <Dashboard user={user} />;
-    }
-
-    // If not authenticated, show public pages
+  const renderCurrentPage = () => {
     switch (currentPage) {
+      case 'dashboard':
+        return (
+          <ProtectedRoute isAuthenticated={isAuthenticated} onShowAuth={() => setShowAuthModal(true)}>
+            <Dashboard 
+              user={user} 
+              onUpdateUser={updateUser}
+              onLogout={handleLogout}
+              currentPageFromApp={currentPage}
+              setAppCurrentPage={setCurrentPage}
+            />
+          </ProtectedRoute>
+        );
+      case 'profile':
+        return (
+          <ProtectedRoute isAuthenticated={isAuthenticated} onShowAuth={() => setShowAuthModal(true)}>
+            <ProfilePage 
+              user={user} 
+              onUpdateUser={updateUser}
+            />
+          </ProtectedRoute>
+        );
+      case 'settings':
+        return (
+          <ProtectedRoute isAuthenticated={isAuthenticated} onShowAuth={() => setShowAuthModal(true)}>
+            <SettingsPage 
+              user={user} 
+              onUpdateUser={updateUser}
+              onLogout={handleLogout}
+            />
+          </ProtectedRoute>
+        );
       case 'pricing':
         return <PricingPage />;
       default:
@@ -56,25 +91,29 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navigation 
-        mobileMenuOpen={mobileMenuOpen} 
-        setMobileMenuOpen={setMobileMenuOpen}
-        currentPage={currentPage}
-        user={user}
-        onShowAuth={() => setShowAuthModal(true)}
-        onLogout={handleLogout}
-        onNavigateLanding={handleNavigateLanding}
-      />
-      
-      {renderPageContent()}
-      
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onAuthSuccess={handleAuthSuccess}
-      />
-    </div>
+    <Router>
+      <div className="min-h-screen bg-gray-50">
+        <Navigation
+          mobileMenuOpen={mobileMenuOpen}
+          setMobileMenuOpen={setMobileMenuOpen}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          user={user}
+          onShowAuth={() => setShowAuthModal(true)}
+          onLogout={handleLogout}
+          onNavigateLanding={handleNavigateLanding}
+        />
+        
+        {renderCurrentPage()}
+
+        {/* Auth Modal */}
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onAuthSuccess={handleAuthSuccess}
+        />
+      </div>
+    </Router>
   );
 }
 
