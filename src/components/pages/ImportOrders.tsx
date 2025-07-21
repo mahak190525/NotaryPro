@@ -686,7 +686,6 @@ function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
               <p className="text-gray-900">{order.signerEmail}</p>
             </div>
           </div>
-
           {order.specialInstructions && (
             <div>
               <label className="block text-sm font-medium text-gray-700">Special Instructions</label>
