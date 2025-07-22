@@ -116,15 +116,17 @@ export const userApi = {
     let data, error;
 
     if (provider === 'google') {
+      // For Google users, update the google_users table using uuid_id
       const { data: googleData, error: googleError } = await supabase
         .from('google_users')
         .update(updateData)
-        .eq('id', userId)
+        .eq('uuid_id', userId)
         .select()
         .single();
       data = googleData;
       error = googleError;
     } else {
+      // For email users, update the users table directly
       const { data: userData, error: userError } = await supabase
         .from('users')
         .update(updateData)
@@ -160,15 +162,17 @@ export const userApi = {
     let userData;
 
     if (provider === 'google') {
+      // For Google users, get data from google_users table using uuid_id
       const { data, error } = await supabase
         .from('google_users')
         .select('*')
-        .eq('id', userId)
+        .eq('uuid_id', userId)
         .single();
 
       if (error) throw error;
       userData = data;
     } else {
+      // For email users, get data from users table
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -180,7 +184,7 @@ export const userApi = {
     }
 
     return {
-      id: userData.id,
+      id: userId, // This is the UUID for both Google and email users
       email: userData.email,
       firstName: userData.first_name || '',
       lastName: userData.last_name || '',
