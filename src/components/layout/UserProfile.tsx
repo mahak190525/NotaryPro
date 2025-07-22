@@ -18,23 +18,29 @@ export default function UserProfile({ user, onLogout, onNavigateProfile, onNavig
       if (!user?.id) return;
 
       try {
-        // Try to get avatar from the users table first
-        let { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('avatar_url')
-          .eq('id', user.id)
-          .single();
-
-        // If not found in users table, try google_users table
-        if (userError && user.provider === 'google') {
+        let userData;
+        
+        if (user.provider === 'google') {
+          // For Google users, get avatar from google_users table using uuid_id
           const { data: googleUserData, error: googleError } = await supabase
             .from('google_users')
             .select('avatar_url')
-            .eq('id', user.id)
+            .eq('uuid_id', user.id)
             .single();
 
           if (!googleError && googleUserData) {
             userData = googleUserData;
+          }
+        } else {
+          // For email users, get avatar from users table
+          const { data: userRecord, error: userError } = await supabase
+            .from('users')
+            .select('avatar_url')
+            .eq('id', user.id)
+            .single();
+
+          if (!userError && userRecord) {
+            userData = userRecord;
           }
         }
 

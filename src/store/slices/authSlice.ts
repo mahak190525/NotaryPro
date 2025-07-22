@@ -69,6 +69,109 @@ export const signInWithGoogle = createAsyncThunk<
     try {
       const { supabase } = await import('../../supabase/supabaseClient');
       
+      // Check if Google user already exists in database
+      const { data: existingUser, error: fetchError } = await supabase
+        .from('google_users')
+        .select('*')
+        .eq('id', googleUser.sub)
+        .single();
+
+      let userData: User;
+
+      if (existingUser && !fetchError) {
+        // Google user exists - use the uuid_id as the user ID
+        if (!existingUser.uuid_id) {
+          throw new Error('Google user missing UUID reference');
+        }
+        console.log('existingUser',existingUser);
+        userData = {
+          id: existingUser.uuid_id, // Use the UUID from google_users.uuid_id
+          email: existingUser.email,
+          firstName: existingUser.first_name || googleUser.given_name || '',
+          lastName: existingUser.last_name || googleUser.family_name || '',
+          businessName: existingUser.business_name || 'Google User',
+          avatar: existingUser.avatar_url || googleUser.picture,
+          provider: 'google',
+          phone: existingUser.phone || '',
+          address: existingUser.address || '',
+          city: existingUser.city || '',
+          state: existingUser.state || '',
+          zipCode: existingUser.zip_code || '',
+          licenseNumber: existingUser.license_number || '',
+          commissionExpiration: existingUser.commission_expiration || '',
+          createdAt: existingUser.created_at || '',
+        };
+
+        // Update email if changed
+        const { error: updateError } = await supabase
+          .from('google_users')
+          .update({
+            email: googleUser.email,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', googleUser.sub);
+
+        if (updateError) {
+          console.error('Failed to update Google user:', updateError.message);
+        }
+      } else {
+        // New Google user - the trigger will handle creating the users record
+        const { data: newGoogleUser, error: insertError } = await supabase
+          .from('google_users')
+          .insert({
+            id: googleUser.sub,
+            email: googleUser.email,
+            first_name: googleUser.given_name || '',
+            last_name: googleUser.family_name || '',
+            business_name: 'Google User',
+            avatar_url: googleUser.picture,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        // Check if uuid_id was set by the trigger
+        if (!newGoogleUser.uuid_id) {
+          throw new Error('Failed to create user UUID reference');
+        }
+
+        userData = {
+          id: newGoogleUser.uuid_id, // Use the UUID from google_users.uuid_id
+          email: googleUser.email,
+          firstName: googleUser.given_name || '',
+          lastName: googleUser.family_name || '',
+          businessName: 'Google User',
+          avatar: googleUser.picture,
+          provider: 'google',
+          createdAt: newGoogleUser.created_at || '',
+        };
+      }
+      
+      return userData;
+        
+    } catch (error: any) {
+      return rejectWithValue({
+        message: error.message || 'Google sign in failed',
+        code: error.code,
+      });
+    }
+  }
+);
+
+export const signInWithGoogleOld = createAsyncThunk<
+  User,
+  { googleUser: any },
+  { rejectValue: ApiError }
+>(
+  'auth/signInWithGoogleOld',
+  async ({ googleUser }, { rejectWithValue }) => {
+    try {
+      const { supabase } = await import('../../supabase/supabaseClient');
+      
       // Check if user already exists in database
       const { data: existingUser, error: fetchError } = await supabase
         .from('google_users')
@@ -140,15 +243,10 @@ export const signInWithGoogle = createAsyncThunk<
         userData.createdAt = newUserData.created_at;
       }
       return userData;
-        
-    } catch (error: any) {
-      return rejectWithValue({
-        message: error.message || 'Google sign in failed',
-        code: error.code,
-      });
     }
+    finally {}
   }
-);
+)
 
 export const signOut = createAsyncThunk<void, void, { rejectValue: ApiError }>(
   'auth/signOut',
